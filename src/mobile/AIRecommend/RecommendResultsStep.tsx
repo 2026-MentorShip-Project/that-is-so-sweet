@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, Star, MapPin, ExternalLink, RefreshCw, PartyPopper, Share2 } from "lucide-react";
+import { Sparkles, Star, MapPin, ExternalLink, RefreshCw, PartyPopper, Share2, Copy } from "lucide-react";
 import { Button, Tag } from "../../design-system/components";
 import { cardStyle } from "../mobileStyles";
 import { Candidate, PreferenceFormState, candidateReason, buildRestateSummary } from "../../lib/aiRecommendDemo";
@@ -182,20 +182,35 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
 
       {chosen && (
         <div style={{ ...cardStyle, background: "rgba(90,158,90,0.06)", borderColor: "rgba(90,158,90,0.3)" }}>
-          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>一鍵複製確認通知</div>
-          <div style={{ background: "#fff", borderRadius: "var(--radius-md)", padding: 10, fontSize: 11, whiteSpace: "pre-line", overflowWrap: "anywhere", lineHeight: 1.6, color: "var(--color-ink)", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 800 }}>一鍵複製確認通知</div>
+            <button
+              onClick={handleCopy}
+              title="複製確認通知"
+              aria-label="複製確認通知"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--color-ink)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <Copy size={16} />
+            </button>
+          </div>
+          <div style={{ background: "#fff", borderRadius: "var(--radius-md)", padding: 10, fontSize: 11, whiteSpace: "pre-line", overflowWrap: "anywhere", lineHeight: 1.6, color: "var(--color-ink)", marginBottom: canShare ? 8 : 0 }}>
             {chosenBroadcast}
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {canShare && (
-              <Button variant="secondary" fullWidth icon={<Share2 size={16} />} onClick={() => shareText({ title: "推薦餐廳確認通知", text: chosenBroadcast })}>
-                分享
-              </Button>
-            )}
-            <Button variant="dark" fullWidth onClick={handleCopy}>
-              一鍵複製通知
+          {canShare && (
+            <Button variant="secondary" fullWidth icon={<Share2 size={16} />} onClick={() => shareText({ title: "推薦餐廳確認通知", text: chosenBroadcast })}>
+              分享
             </Button>
-          </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <Button variant="muted" fullWidth onClick={onRestart}>
               重新選一次

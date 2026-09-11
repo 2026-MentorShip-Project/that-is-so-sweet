@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CheckCircle2, MessageCircle, RotateCcw, Archive, Ban, Sparkles, Star, RefreshCw, Share2 } from "lucide-react";
+import { CheckCircle2, MessageCircle, RotateCcw, Archive, Ban, Sparkles, Star, RefreshCw, Share2, Copy } from "lucide-react";
 import { EventData, AiSelectedRestaurant } from "../types";
 import { formatChineseWeekday, generateGoogleCalendarUrl, downloadIcsFile } from "../lib/calendar";
 import { getMeetupEndInfo } from "../lib/eventStatus";
@@ -203,18 +203,35 @@ export const FinalizedView: React.FC<FinalizedViewProps> = ({ event, isHost, onR
       </div>
 
       <div style={{ ...cardStyle, background: "rgba(90,158,90,0.06)", borderColor: "rgba(90,158,90,0.3)" }}>
-        <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>一鍵複製聚會敲定通知</div>
-        <div style={{ background: "#fff", borderRadius: "var(--radius-md)", padding: 10, fontSize: 11, whiteSpace: "pre-line", lineHeight: 1.6, color: "var(--color-ink)", marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 800 }}>一鍵複製聚會敲定通知</div>
+          <button
+            onClick={handleCopy}
+            title="複製定案通知"
+            aria-label="複製定案通知"
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: 4,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--color-ink)",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <Copy size={16} />
+          </button>
+        </div>
+        <div style={{ background: "#fff", borderRadius: "var(--radius-md)", padding: 10, fontSize: 11, whiteSpace: "pre-line", lineHeight: 1.6, color: "var(--color-ink)", marginBottom: canShare ? 8 : 0 }}>
           {broadcast}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {canShare && (
-            <Button variant="secondary" fullWidth icon={<Share2 size={16} />} onClick={() => shareText({ title: "聚會敲定通知", text: broadcast })}>
-              分享
-            </Button>
-          )}
-          <Button variant="dark" fullWidth onClick={handleCopy}>一鍵複製定案通知</Button>
-        </div>
+        {canShare && (
+          <Button variant="secondary" fullWidth icon={<Share2 size={16} />} onClick={() => shareText({ title: "聚會敲定通知", text: broadcast })}>
+            分享
+          </Button>
+        )}
       </div>
 
       {isHost && (onReopen || onCancelEvent) && (

@@ -161,7 +161,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const handleChange = (id: string, st: AvailabilityStatus): void => setAvailability((p) => ({ ...p, [id]: st }));
 
   const handleSubmit = async () => {
-    if (!nickname.trim() || isLocked) return;
+    if (!nickname.trim() || !password.trim() || isLocked) return;
     try {
       await onSubmit({
         participantId: editingParticipantId || undefined,
@@ -339,9 +339,10 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
           />
           <Input
             size="sm"
+            required
             label={
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                密碼（選填）
+                手機末三碼
                 <button
                   type="button"
                   onClick={() => setShowPasswordInfo((v) => !v)}
@@ -352,11 +353,12 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
                 </button>
               </span>
             }
-            placeholder={needsPassword ? "此暱稱已有人使用，請輸入密碼" : "設定密碼可在其他裝置回來編輯"}
-            type="password"
+            placeholder={needsPassword ? "此暱稱已有人使用，請輸入手機末三碼" : "請輸入手機末三碼（例如：123）"}
+            type="text"
+            maxLength={3}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            hint={showPasswordInfo ? "設定密碼後，就可以在其他裝置回來編輯；下次要用同樣的暱稱登入時，也需要輸入這組密碼。" : undefined}
+            hint={showPasswordInfo ? "設定手機末三碼後，可以在其他裝置登入並修改您的時間。" : undefined}
           />
         </>
       )}
@@ -364,7 +366,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
         <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: 10, borderRadius: "var(--radius-md)", background: "var(--color-hot-subtle)", border: "1px solid rgba(214,48,60,0.25)" }}>
           <AlertTriangle size={14} color="var(--color-hot)" style={{ flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 12, color: "var(--color-ink)", lineHeight: 1.5 }}>
-            密碼不正確，暫時無法查看或編輯這個暱稱的既有回覆。
+            手機末三碼不正確，暫時無法查看或編輯這個暱稱的既有回覆。
           </span>
         </div>
       )}
@@ -556,7 +558,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
             : undefined
         }
       >
-        <Button variant="primary" fullWidth disabled={!nickname.trim() || isLoading || votingClosed || isLocked} onClick={handleSubmit}>
+        <Button variant="primary" fullWidth disabled={!nickname.trim() || !password.trim() || isLoading || votingClosed || isLocked} onClick={handleSubmit}>
           {editingParticipantId ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               更新我的回覆

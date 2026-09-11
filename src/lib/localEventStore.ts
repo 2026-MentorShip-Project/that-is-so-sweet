@@ -367,6 +367,9 @@ export function submitResponse(id: string, input: SubmitResponseInput): { event:
   if (!nickname || !nickname.trim()) {
     throw new Error("請輸入您的暱稱");
   }
+  if (!password || !password.trim()) {
+    throw new Error("請輸入手機末三碼");
+  }
 
   const cleanNickname = nickname.trim();
   const now = new Date().toISOString();
@@ -379,12 +382,12 @@ export function submitResponse(id: string, input: SubmitResponseInput): { event:
     existingIndex = event.responses.findIndex((r) => r.nickname.toLowerCase() === cleanNickname.toLowerCase());
   }
 
-  // 比對到既有回覆時，如果那筆回覆有設密碼，送出的密碼必須完全相符才能覆蓋——
+  // 比對到既有回覆時，如果那筆回覆有設密碼/手機末三碼，送出的值必須完全相符才能覆蓋——
   // 不管是靠 participantId 還是暱稱比對到的，都套用同一個檢查，避免有人偽造
   // participantId 繞過暱稱層級的密碼保護。
   const existing = existingIndex >= 0 ? event.responses[existingIndex] : undefined;
   if (existing?.password && existing.password !== password) {
-    throw new Error("此暱稱已被使用，密碼不正確");
+    throw new Error("此暱稱已被使用，手機末三碼不正確");
   }
 
   const newResponse: ParticipantResponse = {

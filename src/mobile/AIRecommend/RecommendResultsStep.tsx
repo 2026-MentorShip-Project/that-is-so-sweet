@@ -147,7 +147,7 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
                 {c.rating.toFixed(1)}
               </span>
               <span style={{ fontSize: 12, fontWeight: 800, color: "var(--color-ink)" }}>{c.priceLevel}</span>
-              <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{c.area}．距離 {c.distanceLabel}</span>
+              <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{c.area}</span>
               <span style={{ fontSize: 11, color: "var(--color-muted)" }}>可容納 {c.capacityLabel}</span>
             </div>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginTop: 6 }}>

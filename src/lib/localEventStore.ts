@@ -377,17 +377,24 @@ export function submitResponse(id: string, input: SubmitResponseInput): { event:
   let existingIndex = -1;
   if (participantId) {
     existingIndex = event.responses.findIndex((r) => r.id === participantId);
-  }
-  if (existingIndex === -1) {
-    existingIndex = event.responses.findIndex((r) => r.nickname.toLowerCase() === cleanNickname.toLowerCase());
+    if (existingIndex === -1) {
+      throw new Error("找不到原有的投票紀錄，請重新驗證身份");
+    }
   }
 
-  // 比對到既有回覆時，如果那筆回覆有設密碼/手機末三碼，送出的值必須完全相符才能覆蓋——
-  // 不管是靠 participantId 還是暱稱比對到的，都套用同一個檢查，避免有人偽造
-  // participantId 繞過暱稱層級的密碼保護。
+  // 暱稱在整個活動中必須唯一（大小寫不分）——無論是「我要投票」（無 participantId，
+  // 此時任何比對到的既有回覆都算衝突）還是「更新投票」（比對到「自己以外」的既有回覆
+  // 才算衝突；沿用自己原本的暱稱不受影響）。就算手機末三碼恰好相同也不能覆蓋別人的回覆，
+  // 避免不同人共用暱稱互相覆蓋彼此的投票。
+  const nicknameMatchIndex = event.responses.findIndex((r) => r.nickname.toLowerCase() === cleanNickname.toLowerCase());
+  if (nicknameMatchIndex >= 0 && nicknameMatchIndex !== existingIndex) {
+    throw new Error("此暱稱已被使用，請更換暱稱，或改用「更新投票」修改原有回覆");
+  }
+
+  // 比對到既有回覆時，如果那筆回覆有設密碼/手機末三碼，送出的值必須完全相符才能覆蓋。
   const existing = existingIndex >= 0 ? event.responses[existingIndex] : undefined;
   if (existing?.password && existing.password !== password) {
-    throw new Error("此暱稱已被使用，手機末三碼不正確");
+    throw new Error("手機末三碼不正確");
   }
 
   const newResponse: ParticipantResponse = {

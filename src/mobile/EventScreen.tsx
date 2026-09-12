@@ -56,6 +56,12 @@ export const EventScreen: React.FC<EventScreenProps> = ({
   const [view, setView] = useState<"identify_vote" | "heatmap">(
     initialTab === "vote" ? "identify_vote" : "heatmap"
   );
+  const [voteEntryMode, setVoteEntryMode] = useState<"create" | "login" | undefined>(undefined);
+
+  const goToVote = (target: "create" | "login") => {
+    setVoteEntryMode(target);
+    setView("identify_vote");
+  };
 
   // Re-apply the requested view whenever the URL asks for one — covers not just the
   // first mount but also navigating here via a hash-only change (e.g. pasting the
@@ -112,7 +118,18 @@ export const EventScreen: React.FC<EventScreenProps> = ({
       ) : (
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" }}>
           {view === "identify_vote" && (
-            <VoteTab event={event} nickname={nickname} setNickname={setNickname} email={email} setEmail={setEmail} onSubmit={onRespond} isLoading={isLoading} onSubmitted={() => setView("heatmap")} />
+            <VoteTab
+              event={event}
+              nickname={nickname}
+              setNickname={setNickname}
+              email={email}
+              setEmail={setEmail}
+              onSubmit={onRespond}
+              isLoading={isLoading}
+              onSubmitted={() => setView("heatmap")}
+              initialMode={voteEntryMode}
+              onCancel={() => setView("heatmap")}
+            />
           )}
           {view === "heatmap" && (
             <>
@@ -130,7 +147,7 @@ export const EventScreen: React.FC<EventScreenProps> = ({
               <HeatmapTab
                 event={event}
                 userNickname={nickname}
-                onGoToVote={() => setView("identify_vote")}
+                onGoToVote={goToVote}
                 isHost={isHost}
                 onFinalize={onFinalize}
                 onReopen={onReopen}

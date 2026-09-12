@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Zap, RotateCw, ChevronUp, ChevronDown, List, CalendarDays, AlertTriangle, Info } from "lucide-react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
+import { Zap, RotateCw, ChevronUp, ChevronDown, List, CalendarDays, AlertTriangle, Info, X } from "lucide-react";
 import { EventData, AvailabilityStatus, SubmitResponseInput } from "../types";
 import { formatChineseWeekday } from "../lib/calendar";
 import { isVotingOpen, formatDeadline, getLifecycleStatus } from "../lib/eventStatus";
@@ -19,6 +19,10 @@ interface VoteTabProps {
   onSubmitted?: () => void;
   /** The desktop shell wraps this in an `overflow: hidden` card, which breaks `position: sticky`. */
   stickyFooter?: boolean;
+  /** Skip the read-only landing state and jump straight into "我要投票" or "更新投票" — e.g. when arriving via a banner button that already knows the visitor's intent. */
+  initialMode?: "create" | "login";
+  /** Where "取消" (and the login modal's close button) should go. Defaults to this component's own read-only landing state when omitted. */
+  onCancel?: () => void;
 }
 
 interface VoteRowProps {
@@ -84,7 +88,10 @@ const VoteRow: React.FC<VoteRowProps> = (props) => {
   );
 };
 
-export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, email, setEmail, onSubmit, isLoading, onSubmitted, stickyFooter = true }) => {
+type VoteMode = "readonly" | "create" | "login" | "edit";
+
+export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, email, setEmail, onSubmit, isLoading, onSubmitted, stickyFooter = true, initialMode, onCancel }) => {
+  const [mode, setMode] = useState<VoteMode>(initialMode === "create" || initialMode === "login" ? initialMode : "readonly");
   const [comment, setComment] = useState("");
   const [password, setPassword] = useState("");
   const [availability, setAvailability] = useState<Record<string, AvailabilityStatus>>({});
@@ -97,29 +104,83 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const [calViewDate, setCalViewDate] = useState(new Date());
   const [calActiveDate, setCalActiveDate] = useState<string | null>(null);
 
-  const trimmedNickname = nickname.trim();
-  const matchedExisting = trimmedNickname
-    ? event.responses.find((r) => r.nickname.toLowerCase() === trimmedNickname.toLowerCase())
-    : undefined;
-  const needsPassword = !!matchedExisting?.password;
-  // 比對到的既有回覆有設密碼、但目前輸入的密碼不相符時鎖定：不自動帶入既有作答
-  // 內容（避免沒輸對密碼就看到別人的勾選結果），送出按鈕也會被鎖住。
-  const isLocked = needsPassword && password !== matchedExisting?.password;
+  const [loginNickname, setLoginNickname] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
-  useEffect(() => {
-    if (matchedExisting && !isLocked) {
-      setEditingParticipantId(matchedExisting.id);
-      setAvailability(matchedExisting.availability || {});
-      if (matchedExisting.email) setEmail(matchedExisting.email);
-      if (matchedExisting.comment) setComment(matchedExisting.comment);
-    } else if (!matchedExisting) {
-      setEditingParticipantId(null);
-      const initial: Record<string, AvailabilityStatus> = {};
-      event.slots.forEach((s) => (initial[s.id] = "available"));
-      setAvailability(initial);
+  const trimmedNickname = nickname.trim();
+  const nicknameTaken =
+    mode === "create" && !!trimmedNickname && event.responses.some((r) => r.nickname.toLowerCase() === trimmedNickname.toLowerCase());
+
+  const defaultAvailability = (): Record<string, AvailabilityStatus> => {
+    const initial: Record<string, AvailabilityStatus> = {};
+    event.slots.forEach((s) => (initial[s.id] = "available"));
+    return initial;
+  };
+
+  const startCreate = () => {
+    setEditingParticipantId(null);
+    setNickname("");
+    setEmail("");
+    setPassword("");
+    setComment("");
+    setAvailability(defaultAvailability());
+    setMode("create");
+  };
+
+  const startLogin = () => {
+    setLoginNickname(nickname || "");
+    setLoginPassword("");
+    setLoginError("");
+    setMode("login");
+  };
+
+  const cancelToReadonly = () => {
+    if (onCancel) {
+      onCancel();
+      return;
     }
+    setMode("readonly");
+    setLoginError("");
+  };
+
+  const handleLogin = () => {
+    const cleanLoginNickname = loginNickname.trim();
+    if (!cleanLoginNickname || !loginPassword.trim()) {
+      setLoginError("請輸入暱稱與手機末三碼");
+      return;
+    }
+    const matched = event.responses.find((r) => r.nickname.toLowerCase() === cleanLoginNickname.toLowerCase());
+    if (!matched || matched.password !== loginPassword.trim()) {
+      setLoginError("暱稱或手機末三碼不正確");
+      return;
+    }
+    setEditingParticipantId(matched.id);
+    setNickname(matched.nickname);
+    setEmail(matched.email || "");
+    setPassword(matched.password || "");
+    setComment(matched.comment || "");
+    setAvailability(matched.availability || {});
+    setLoginError("");
+    setMode("edit");
+  };
+
+  useLayoutEffect(() => {
+    if (initialMode === "create") {
+      setEditingParticipantId(null);
+      setNickname("");
+      setEmail("");
+      setPassword("");
+      setComment("");
+      setAvailability(defaultAvailability());
+    } else if (initialMode === "login") {
+      setLoginNickname(nickname || "");
+      setLoginPassword("");
+      setLoginError("");
+    }
+    // Only meant to prime the form once, on the render that follows arriving with an initialMode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.id, trimmedNickname, isLocked]);
+  }, []);
 
   const allDates: string[] = event.slots
     .map((s) => s.date)
@@ -159,9 +220,10 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const lifecycle = getLifecycleStatus(event);
 
   const handleChange = (id: string, st: AvailabilityStatus): void => setAvailability((p) => ({ ...p, [id]: st }));
+  const editable = mode === "create" || mode === "edit";
 
   const handleSubmit = async () => {
-    if (!nickname.trim() || !password.trim() || isLocked) return;
+    if (!nickname.trim() || !password.trim() || nicknameTaken) return;
     try {
       await onSubmit({
         participantId: editingParticipantId || undefined,
@@ -171,6 +233,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
         availability,
         comment: comment.trim(),
       });
+      setMode("readonly");
       onSubmitted?.();
     } catch {
       // onSubmit already surfaces the failure (e.g. an error toast); nothing more to do here.
@@ -309,13 +372,72 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
           </span>
         </div>
       )}
-      {!votingClosed && (
-        <span style={{ fontSize: 15, fontWeight: 900, fontFamily: "var(--font-display)", color: "var(--color-ink)" }}>填寫我的時間</span>
+      {!votingClosed && mode !== "readonly" && (
+        <span style={{ fontSize: 15, fontWeight: 900, fontFamily: "var(--font-display)", color: "var(--color-ink)" }}>
+          {mode === "edit" ? "更新我的時間" : "填寫我的時間"}
+        </span>
       )}
+      {mode === "login" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 20,
+          }}
+          onClick={cancelToReadonly}
+        >
+          <div
+            style={{ ...cardStyle, width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 10 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: "var(--color-ink)" }}>驗證身份以更新投票</span>
+              <button
+                onClick={cancelToReadonly}
+                style={{ border: "none", background: "none", cursor: "pointer", color: "var(--color-muted)", padding: 2 }}
+                aria-label="關閉"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <Input size="sm" label="您的暱稱" required placeholder="例如：小明" value={loginNickname} onChange={(e) => setLoginNickname(e.target.value)} />
+            <Input
+              size="sm"
+              required
+              label="手機末三碼"
+              placeholder="請輸入手機末三碼（例如：123）"
+              type="text"
+              maxLength={3}
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+            />
+            {loginError && (
+              <span style={{ fontSize: 12, color: "var(--color-hot)", fontWeight: 700 }}>{loginError}</span>
+            )}
+            <Button variant="primary" fullWidth onClick={handleLogin}>
+              登入並修改
+            </Button>
+          </div>
+        </div>
+      )}
+      {mode !== "readonly" && (
       <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 10 }}>
-      {!votingClosed && (
+      {!votingClosed && (mode === "create" || mode === "edit") && (
         <>
-          <Input size="sm" label="您的暱稱" required placeholder="例如：小明" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          <Input
+            size="sm"
+            label="您的暱稱"
+            required
+            disabled={mode === "edit"}
+            placeholder="例如：小明"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+          />
           <Input
             size="sm"
             label={
@@ -340,6 +462,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
           <Input
             size="sm"
             required
+            disabled={mode === "edit"}
             label={
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 手機末三碼
@@ -353,20 +476,20 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
                 </button>
               </span>
             }
-            placeholder={needsPassword ? "此暱稱已有人使用，請輸入手機末三碼" : "請輸入手機末三碼（例如：123）"}
+            placeholder="請輸入手機末三碼（例如：123）"
             type="text"
             maxLength={3}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            hint={showPasswordInfo ? "設定手機末三碼後，可以在其他裝置登入並修改您的時間。" : undefined}
+            hint={showPasswordInfo ? "設定手機末三碼後，可以在其他裝置點選「更新投票」修改您的時間。" : undefined}
           />
         </>
       )}
-      {!votingClosed && isLocked && (
+      {!votingClosed && mode === "create" && nicknameTaken && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: 10, borderRadius: "var(--radius-md)", background: "var(--color-hot-subtle)", border: "1px solid rgba(214,48,60,0.25)" }}>
           <AlertTriangle size={14} color="var(--color-hot)" style={{ flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 12, color: "var(--color-ink)", lineHeight: 1.5 }}>
-            手機末三碼不正確，暫時無法查看或編輯這個暱稱的既有回覆。
+            此暱稱已被使用，請更換暱稱，或改用「更新投票」修改原有回覆。
           </span>
         </div>
       )}
@@ -423,7 +546,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
                     status={status}
                     onChange={handleChange}
                     primaryText={isDateOnly ? `${date} (${formatChineseWeekday(date)})` : undefined}
-                    disabled={votingClosed || isLocked}
+                    disabled={votingClosed || !editable}
                   />
                 );
               })}
@@ -540,7 +663,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
                     status={status}
                     onChange={handleChange}
                     primaryText={isDateOnly ? `${calActiveDate} (${formatChineseWeekday(calActiveDate)})` : undefined}
-                    disabled={votingClosed || isLocked}
+                    disabled={votingClosed || !editable}
                   />
                 );
               })}
@@ -549,8 +672,11 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
         </div>
       )}
 
-      <Input size="sm" label="對此發起此次投票的留言" placeholder="例如：19:00 才能到" value={comment} onChange={(e) => setComment(e.target.value)} />
+      {editable && (
+        <Input size="sm" label="對此發起此次投票的留言" placeholder="例如：19:00 才能到" value={comment} onChange={(e) => setComment(e.target.value)} disabled={!editable} />
+      )}
       </div>
+      )}
       <div
         style={
           stickyFooter
@@ -558,16 +684,51 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
             : undefined
         }
       >
-        <Button variant="primary" fullWidth disabled={!nickname.trim() || !password.trim() || isLoading || votingClosed || isLocked} onClick={handleSubmit}>
-          {editingParticipantId ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              更新我的回覆
-              <RotateCw size={14} />
-            </span>
-          ) : (
-            "送出我的時間"
-          )}
-        </Button>
+        {mode === "readonly" && (
+          <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
+            <div style={{ flex: 2 }}>
+              <Button variant="primary" size="md" fullWidth disabled={votingClosed} onClick={startCreate}>
+                <span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.3, whiteSpace: "normal" }}>
+                  我要投票
+                  <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.85 }}>初次投票</span>
+                </span>
+              </Button>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Button variant="secondary" size="sm" fullWidth disabled={votingClosed} onClick={startLogin}>
+                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                  <RotateCw size={12} style={{ flexShrink: 0 }} />
+                  <span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.3, whiteSpace: "normal" }}>
+                    更新投票
+                    <span style={{ fontSize: 9, fontWeight: 700, opacity: 0.85 }}>已投過要改時間</span>
+                  </span>
+                </span>
+              </Button>
+            </div>
+          </div>
+        )}
+        {(mode === "create" || mode === "edit") && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="secondary" onClick={cancelToReadonly}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              fullWidth
+              disabled={!nickname.trim() || !password.trim() || isLoading || votingClosed || nicknameTaken}
+              onClick={handleSubmit}
+            >
+              {mode === "edit" ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  更新投票
+                  <RotateCw size={14} />
+                </span>
+              ) : (
+                "送出我的時間"
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

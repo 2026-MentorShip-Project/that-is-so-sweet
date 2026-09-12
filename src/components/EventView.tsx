@@ -44,14 +44,18 @@ export const EventView: React.FC<EventViewProps> = ({
   const [nickname, setNickname] = useState(() => getUserNickname());
   const [email, setEmail] = useState(() => getUserEmail());
 
-  const isIdentifiedParticipant =
-    !isHost &&
-    !!nickname.trim() &&
-    event.responses.some((r) => r.nickname.toLowerCase() === nickname.trim().toLowerCase());
-  const defaultView: "identify_vote" | "heatmap" = isHost || isIdentifiedParticipant ? "heatmap" : "identify_vote";
+  // The read-only stats page is always the landing state — visitors pick "我要投票" /
+  // "更新投票" from its banner, which jumps straight into VoteTab's create/login mode.
+  // Only an explicit tab=vote deep link skips straight to the vote entry screen.
   const [view, setView] = useState<"identify_vote" | "heatmap">(
-    initialTab === "vote" ? "identify_vote" : initialTab === "heatmap" ? "heatmap" : defaultView
+    initialTab === "vote" ? "identify_vote" : "heatmap"
   );
+  const [voteEntryMode, setVoteEntryMode] = useState<"create" | "login" | undefined>(undefined);
+
+  const goToVote = (target: "create" | "login") => {
+    setVoteEntryMode(target);
+    setView("identify_vote");
+  };
 
   // Re-apply the requested view whenever the URL asks for one — covers not just the
   // first mount but also navigating here via a hash-only change (e.g. pasting the
@@ -99,7 +103,19 @@ export const EventView: React.FC<EventViewProps> = ({
         ) : (
           <>
             {view === "identify_vote" && (
-              <VoteTab event={event} nickname={nickname} setNickname={setNickname} email={email} setEmail={setEmail} onSubmit={onRespond} isLoading={isLoading} onSubmitted={() => setView("heatmap")} stickyFooter={false} />
+              <VoteTab
+                event={event}
+                nickname={nickname}
+                setNickname={setNickname}
+                email={email}
+                setEmail={setEmail}
+                onSubmit={onRespond}
+                isLoading={isLoading}
+                onSubmitted={() => setView("heatmap")}
+                stickyFooter={false}
+                initialMode={voteEntryMode}
+                onCancel={() => setView("heatmap")}
+              />
             )}
             {view === "heatmap" && (
               <>
@@ -117,7 +133,7 @@ export const EventView: React.FC<EventViewProps> = ({
                 <HeatmapTab
                   event={event}
                   userNickname={nickname}
-                  onGoToVote={() => setView("identify_vote")}
+                  onGoToVote={goToVote}
                   isHost={isHost}
                   onFinalize={onFinalize}
                   onReopen={onReopen}

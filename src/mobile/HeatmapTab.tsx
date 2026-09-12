@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { MessageCircle, BarChart3, CalendarDays, CalendarCheck, ChevronDown, ChevronUp, ChevronLeft, X, AlertTriangle, Ban, Check, Award, Info } from "lucide-react";
+import { MessageCircle, BarChart3, CalendarDays, CalendarCheck, ChevronDown, ChevronUp, ChevronLeft, X, AlertTriangle, Ban, Check, Award, Info, RotateCw } from "lucide-react";
 import { AvailabilityStatus, EventData, SlotStats, UpdateEventInput } from "../types";
 import { formatChineseWeekday } from "../lib/calendar";
 import { computeSlotStats, formatSlotTime } from "../lib/slots";
-import { getLifecycleStatus, formatDeadline } from "../lib/eventStatus";
+import { getLifecycleStatus, formatDeadline, isVotingOpen } from "../lib/eventStatus";
 import { Avatar, Badge, Button, Input } from "../design-system/components";
 import { cardStyle, countInAdjacentMonth, EmailIndicator, MonthNavButton, SectionLabel, STATUS_META } from "./mobileStyles";
 import { ReopenModal } from "./ReopenModal";
@@ -13,7 +13,7 @@ import { EditEventModal } from "./EditEventModal";
 interface HeatmapTabProps {
   event: EventData;
   userNickname: string;
-  onGoToVote: () => void;
+  onGoToVote: (target: "create" | "login") => void;
   isHost?: boolean;
   onFinalize?: (finalSlotId: string, finalNote?: string) => Promise<void>;
   onReopen?: (newDeadline?: string) => Promise<void>;
@@ -232,6 +232,7 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   }, {} as Record<string, typeof stats>);
   const total = event.responses.length;
   const hasResponded = !!userNickname.trim() && event.responses.some((r) => r.nickname.toLowerCase() === userNickname.trim().toLowerCase());
+  const votingClosed = !isVotingOpen(event);
   const isDateOnly = event.mode === "date_only";
   const lifecycle = getLifecycleStatus(event);
   const selectedSlot = event.slots.find((s) => s.id === selectedFinalSlotId);
@@ -384,8 +385,7 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   return (
     <div style={{ padding: layout === "desktop" ? 20 : 14, display: "flex", flexDirection: "column", gap: 10 }}>
       <div
-        onClick={onGoToVote}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--color-cream)", border: "1px solid var(--color-border)", cursor: "pointer" }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--color-cream)", border: "1px solid var(--color-border)" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, fontSize: 11, fontWeight: 700, color: "var(--color-muted)" }}>
           <CalendarCheck size={13} color="var(--color-muted)" style={{ flexShrink: 0 }} />
@@ -393,9 +393,15 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
             {hasResponded ? "已收到您的時間紀錄，隨時可以回來更新" : "還沒有勾選您的時間？花 30 秒讓大家更快敲定"}
           </span>
         </div>
-        <div style={{ flexShrink: 0 }}>
-          <Button variant="primary" size="sm" onClick={onGoToVote}>
-            {hasResponded ? "更新時間" : "我要投票"}
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <Button variant="primary" size="sm" disabled={votingClosed} onClick={() => onGoToVote("create")}>
+            我要投票
+          </Button>
+          <Button variant="secondary" size="sm" disabled={votingClosed} onClick={() => onGoToVote("login")}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <RotateCw size={11} />
+              更新投票
+            </span>
           </Button>
         </div>
       </div>

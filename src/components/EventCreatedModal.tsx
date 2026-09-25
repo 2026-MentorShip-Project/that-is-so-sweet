@@ -11,8 +11,8 @@ interface EventCreatedModalProps {
 }
 
 // Shown after POST /api/events/ succeeds. Unlike ShareModal it only needs the
-// { id, shareUrl } the backend returns, not a full EventData — used by both
-// the desktop and mobile trees until GET /api/events/{id} is wired up.
+// { id, shareUrl } the backend returns, not a full EventData. Shown over the
+// new event's page right after creation, in both the desktop and mobile trees.
 export const EventCreatedModal: React.FC<EventCreatedModalProps> = ({ title, shareUrl, onClose, onCopySuccess }) => {
   const copyText = `【${title}】\n快來投票選你方便的時間吧！\n${shareUrl}`;
 
@@ -73,7 +73,7 @@ export const EventCreatedModal: React.FC<EventCreatedModalProps> = ({ title, sha
           </div>
         </div>
         <div style={{ marginTop: 16 }}>
-          <Button variant="ghost" fullWidth onClick={onClose}>回到我揪的團</Button>
+          <Button variant="ghost" fullWidth onClick={onClose}>查看活動</Button>
         </div>
       </div>
     </div>

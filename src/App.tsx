@@ -275,11 +275,13 @@ export default function App() {
     if (!currentEventId || !currentHostToken) return;
     setIsLoading(true);
     try {
-      const updated = await cancelEvent(currentEventId, currentHostToken);
+      const updated = isDemoEvent(currentEventId)
+        ? await cancelEvent(currentEventId, currentHostToken)
+        : await eventsApi.cancelEvent(currentEventId);
       setEventData(updated);
       addToast("info", "活動已取消");
     } catch (err: any) {
-      addToast("error", err.message || "取消活動失敗");
+      addToast("error", errorMessage(err, "取消活動失敗"));
     } finally {
       setIsLoading(false);
     }

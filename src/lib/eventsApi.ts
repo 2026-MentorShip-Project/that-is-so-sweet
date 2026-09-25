@@ -116,6 +116,13 @@ export async function reopenEvent(eventId: string, responseDeadline: string): Pr
   return fromApiEvent(data);
 }
 
+// Works on active or finalized events. The backend soft-deletes every vote
+// and clears the final slot, so the returned event has no responses.
+export async function cancelEvent(eventId: string): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "cancel"), { method: "POST" });
+  return fromApiEvent(data);
+}
+
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API
 // wants "HH:MM:SS" or null.
 export function toCreateEventRequest(input: CreateEventInput): CreateEventRequest {

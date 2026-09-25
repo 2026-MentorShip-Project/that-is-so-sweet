@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
+import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
 import { ApiError } from "./http";
 import { CreateEventInput } from "../types";
 
@@ -394,3 +394,25 @@ describe("reopenEvent", () => {
   });
 });
 
+describe("cancelEvent", () => {
+  it("POSTs with no body and returns the cancelled event with its votes cleared", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "cancelled", displayStatus: "cancelled", responses: [], finalSlotId: null }));
+
+    const event = await cancelEvent("irt9DIwH");
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/cancel/");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
+    expect(event).toMatchObject({ status: "cancelled", responses: [], finalSlotId: undefined });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(403, { message: "僅活動擁有者可取消活動", code: "FORBIDDEN" }));
+
+    const err = await cancelEvent("irt9DIwH").catch((e) => e);
+
+    expect(err.status).toBe(403);
+    expect(err.displayMessage).toBe("僅活動擁有者可取消活動");
+  });
+});

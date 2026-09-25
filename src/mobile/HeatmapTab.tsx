@@ -3,6 +3,7 @@ import { MessageCircle, BarChart3, CalendarDays, CalendarCheck, ChevronDown, Che
 import { AvailabilityStatus, EventData, SlotStats, UpdateEventInput } from "../types";
 import { formatChineseWeekday } from "../lib/calendar";
 import { computeSlotStats, formatSlotTime } from "../lib/slots";
+import { defaultFinalSlotId, finalizeWarning } from "../lib/finalizePick";
 import { getLifecycleStatus, formatDeadline, isVotingOpen } from "../lib/eventStatus";
 import { Avatar, Badge, Button, Input } from "../design-system/components";
 import { cardStyle, countInAdjacentMonth, EmailIndicator, MonthNavButton, SectionLabel, STATUS_META } from "./mobileStyles";
@@ -19,6 +20,9 @@ interface HeatmapTabProps {
   onReopen?: (newDeadline?: string) => Promise<void>;
   onCancelEvent?: () => Promise<void>;
   onUpdateEvent?: (input: Omit<UpdateEventInput, "hostToken">) => Promise<void>;
+  /** Edit dialog open state — driven by the /events/{id}/edit URL. */
+  isEditing?: boolean;
+  onEditingChange?: (open: boolean) => void;
   isLoading?: boolean;
   /** Desktop has room to show the calendar and its selected-date detail side by side. */
   layout?: "mobile" | "desktop";
@@ -196,6 +200,8 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   onReopen,
   onCancelEvent,
   onUpdateEvent,
+  isEditing = false,
+  onEditingChange,
   isLoading,
   layout = "mobile",
 }) => {
@@ -214,7 +220,7 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   // 主辦人操作區塊的 state（原本是 HostTab.tsx 的內容，併入這個檔案）
   // Defaults to the top-ranked (most-voted) slot rather than slots[0] so the
   // pre-selected row is visible in the default top-3 bar-view list.
-  const [selectedFinalSlotId, setSelectedFinalSlotId] = useState<string | undefined>(qualifying[0]?.slotId ?? event.slots[0]?.id);
+  const [selectedFinalSlotId, setSelectedFinalSlotId] = useState<string | undefined>(() => defaultFinalSlotId(stats));
   const noteDefaultLines = [
     event.location ? `地點：${event.location.text}` : null,
     event.description ? `備註：${event.description}` : null,
@@ -223,7 +229,8 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   const [confirmingFinalize, setConfirmingFinalize] = useState(false);
   const [reopening, setReopening] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const editing = isEditing && isHost;
+  const setEditing = (open: boolean) => onEditingChange?.(open);
   const top = showAllTop ? qualifying : qualifying.slice(0, 3);
   const moreCount = qualifying.length - 3;
   const grouped = stats.reduce((acc, s) => {
@@ -640,6 +647,45 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
               </div>
             </div>
           )}
+          {qualifying.length === 0 && (
+            // The vote distribution above only lists slots someone can attend,
+            // so with no such slot the host picks from the full candidate list.
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "var(--color-muted)", marginBottom: 6 }}>
+                {total === 0 ? "還沒有人投票，也可以直接選一個時段定案：" : "目前沒有任何時段有人可以出席，也可以直接選一個時段定案："}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {stats.map((s) => {
+                  const picked = selectedFinalSlotId === s.slotId;
+                  return (
+                    <button
+                      key={s.slotId}
+                      onClick={() => setSelectedFinalSlotId(s.slotId)}
+                      aria-pressed={picked}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        padding: "9px 12px",
+                        borderRadius: "var(--radius-md)",
+                        border: picked ? "1.5px solid var(--color-primary)" : "1px solid var(--color-border)",
+                        background: picked ? "var(--color-primary-subtle)" : "#fff",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--color-ink)" }}>
+                        {s.slot.date} ({formatChineseWeekday(s.slot.date)}){!isDateOnly ? ` ${formatSlotTime(s.slot.time)}` : ""}
+                        {s.slot.label ? <span style={{ fontWeight: 600, color: "var(--color-muted)" }}> · {s.slot.label}</span> : null}
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--color-muted)", whiteSpace: "nowrap" }}>0 人可出席</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: 11, color: "var(--color-muted)", marginBottom: 10 }}>
             目前已選：<span style={{ fontWeight: 800, color: "var(--color-ink)" }}>{selectedLabel}</span>
           </div>
@@ -728,6 +774,12 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
             <div style={{ fontSize: 12, color: "var(--color-muted)", marginBottom: 14, lineHeight: 1.6 }}>
               定案後活動將轉為「已敲定通知模式」，暫停開放新投票。
             </div>
+            {selectedFinalSlotId && finalizeWarning(stats, selectedFinalSlotId) && (
+              <div style={{ marginBottom: 14, padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--color-hot-subtle)", display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--color-hot)" }}>
+                <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                {finalizeWarning(stats, selectedFinalSlotId)}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
               <Button variant="muted" fullWidth onClick={() => setConfirmingFinalize(false)}>返回修改</Button>
               <Button

@@ -1,7 +1,7 @@
 // Events module (模組01/03/07/10) against the real backend. The rest of the
 // app still goes through ./api.ts (localStorage) until each endpoint is
 // migrated.
-import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventSummary } from "../types";
+import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventSummary, UpdateEventInput } from "../types";
 import { apiFetch } from "./http";
 
 export function listMyEvents(): Promise<EventSummary[]> {
@@ -53,6 +53,73 @@ export function fromApiEvent(e: ApiEvent): EventData & { isOwner: boolean } {
 
 export async function getEvent(id: string): Promise<EventData & { isOwner: boolean }> {
   const data = await apiFetch<ApiEvent>(`/api/events/${encodeURIComponent(id)}/`, { optionalAuth: true });
+  return fromApiEvent(data);
+}
+
+export type EditableEventFields = Omit<UpdateEventInput, "hostToken">;
+
+// PATCH /api/events/{id}/ with only the fields that differ from `original`.
+// Sending unchanged fields isn't harmless: the backend re-validates
+// responseDeadline as "must be in the future", so echoing back an
+// already-passed deadline would reject an edit that only touched the title.
+export async function updateEvent<T extends EventData>(original: T, input: EditableEventFields): Promise<T | (EventData & { isOwner: boolean })> {
+  const patch: Record<string, unknown> = {};
+  if (input.title !== undefined && input.title !== original.title) patch.title = input.title;
+
+  const description = input.description || null;
+  if (description !== (original.description || null)) patch.description = description;
+
+  const location = input.location?.text || null;
+  if (location !== (original.location?.text || null)) patch.location = location;
+
+  if (input.hostName !== undefined && input.hostName !== (original.hostName || "")) patch.hostNickname = input.hostName;
+
+  // The backend's hostEmail accepts neither "" nor null, so a cleared field
+  // can't be sent — it just keeps the stored email.
+  if (input.hostEmail && input.hostEmail !== original.hostEmail) patch.hostEmail = input.hostEmail;
+
+  // Compared as instants: the form round-trips "…T23:59:00+08:00" to "…T15:59:00.000Z".
+  if (input.responseDeadline && new Date(input.responseDeadline).getTime() !== new Date(original.responseDeadline).getTime()) {
+    patch.responseDeadline = input.responseDeadline;
+  }
+
+  if (Object.keys(patch).length === 0) return original;
+
+  const data = await apiFetch<ApiEvent>(`/api/events/${encodeURIComponent(original.id)}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return fromApiEvent(data);
+}
+
+// --- Host lifecycle actions (模組06). Each returns the full updated event. --- //
+
+function eventActionPath(eventId: string, action: "finalize" | "reopen" | "cancel"): string {
+  return `/api/events/${encodeURIComponent(eventId)}/${action}/`;
+}
+
+export async function finalizeEvent(eventId: string, input: { finalSlotId: string; finalNote?: string }): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "finalize"), {
+    method: "POST",
+    body: JSON.stringify({ finalSlotId: input.finalSlotId, finalNote: input.finalNote?.trim() || null }),
+  });
+  return fromApiEvent(data);
+}
+
+// Only for finalized events; the backend answers 409 EVENT_NOT_FINALIZED
+// otherwise. The deadline must be in the future.
+export async function reopenEvent(eventId: string, responseDeadline: string): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "reopen"), {
+    method: "POST",
+    body: JSON.stringify({ responseDeadline }),
+  });
+  return fromApiEvent(data);
+}
+
+// Works on active or finalized events. The backend soft-deletes every vote
+// and clears the final slot, so the returned event has no responses.
+export async function cancelEvent(eventId: string): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "cancel"), { method: "POST" });
   return fromApiEvent(data);
 }
 

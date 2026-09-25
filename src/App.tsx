@@ -43,6 +43,12 @@ import { RefreshCw, AlertTriangle } from "lucide-react";
 
 const BASE_PATH = import.meta.env.BASE_URL;
 
+// demo-* events only exist in the localStorage store; everything else is the backend's.
+const isDemoEvent = (eventId: string) => eventId.startsWith("demo-");
+
+const errorMessage = (err: any, fallback: string): string =>
+  err instanceof ApiError ? err.displayMessage : err?.message || fallback;
+
 function currentRoute(): AppRoute {
   return parseRoute(window.location, BASE_PATH);
 }
@@ -105,7 +111,7 @@ export default function App() {
     setIsLoading(true);
     setPageError(null);
     try {
-      if (id.startsWith("demo-")) {
+      if (isDemoEvent(id)) {
         // Demo events only exist in the localStorage store.
         // Priority: tokenParam -> LocalStorage token
         const storedToken = getHostToken(id);
@@ -226,29 +232,40 @@ export default function App() {
     if (!currentEventId || !currentHostToken) return;
     setIsLoading(true);
     try {
-      const updated = await finalizeEvent(currentEventId, {
-        hostToken: currentHostToken,
-        finalSlotId,
-        finalNote,
-      });
+      const updated = isDemoEvent(currentEventId)
+        ? await finalizeEvent(currentEventId, { hostToken: currentHostToken, finalSlotId, finalNote })
+        : await eventsApi.finalizeEvent(currentEventId, { finalSlotId, finalNote });
       setEventData(updated);
       addToast("success", "聚會時間已拍板定案！結果已發布");
     } catch (err: any) {
-      addToast("error", err.message || "拍板定案失敗");
+      addToast("error", errorMessage(err, "拍板定案失敗"));
     } finally {
       setIsLoading(false);
     }
   };
 
+  // "重新開放投票" appears in two states: a finalized event (backend reopen)
+  // and an active event whose deadline has passed (backend reopen rejects
+  // that with 409 EVENT_NOT_FINALIZED, so the deadline is extended via PATCH).
   const handleReopen = async (newDeadline?: string) => {
-    if (!currentEventId || !currentHostToken) return;
+    if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = await reopenEvent(currentEventId, currentHostToken, newDeadline);
+      let updated: EventData;
+      if (isDemoEvent(currentEventId)) {
+        updated = await reopenEvent(currentEventId, currentHostToken, newDeadline);
+      } else if (!newDeadline) {
+        throw new Error("請設定新的投票截止時間");
+      } else if (eventData.status === "finalized") {
+        updated = await eventsApi.reopenEvent(currentEventId, newDeadline);
+      } else {
+        const { title, description, location, hostName, hostEmail } = eventData;
+        updated = await eventsApi.updateEvent(eventData, { title, description, location, hostName, hostEmail, responseDeadline: newDeadline });
+      }
       setEventData(updated);
       addToast("info", "活動已重新開放投票統計");
     } catch (err: any) {
-      addToast("error", err.message || "重新開放失敗");
+      addToast("error", errorMessage(err, "重新開放失敗"));
     } finally {
       setIsLoading(false);
     }
@@ -258,25 +275,29 @@ export default function App() {
     if (!currentEventId || !currentHostToken) return;
     setIsLoading(true);
     try {
-      const updated = await cancelEvent(currentEventId, currentHostToken);
+      const updated = isDemoEvent(currentEventId)
+        ? await cancelEvent(currentEventId, currentHostToken)
+        : await eventsApi.cancelEvent(currentEventId);
       setEventData(updated);
       addToast("info", "活動已取消");
     } catch (err: any) {
-      addToast("error", err.message || "取消活動失敗");
+      addToast("error", errorMessage(err, "取消活動失敗"));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleUpdateEvent = async (input: Omit<UpdateEventInput, "hostToken">) => {
-    if (!currentEventId || !currentHostToken) return;
+    if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = await updateEvent(currentEventId, { hostToken: currentHostToken, ...input });
+      const updated = isDemoEvent(currentEventId)
+        ? await updateEvent(currentEventId, { hostToken: currentHostToken, ...input })
+        : await eventsApi.updateEvent(eventData, input);
       setEventData(updated);
       addToast("success", "活動資訊已更新");
     } catch (err: any) {
-      addToast("error", err.message || "更新活動資訊失敗");
+      addToast("error", err instanceof ApiError ? err.displayMessage : err.message || "更新活動資訊失敗");
     } finally {
       setIsLoading(false);
     }
@@ -308,6 +329,24 @@ export default function App() {
 
   const handleSelectEvent = (id: string) => navigate({ name: "event", eventId: id });
 
+  // /events/{id}/edit opens the edit dialog. Opening pushes the /edit entry,
+  // so closing it steps back; a page loaded directly at /edit has nothing of
+  // ours to go back to, so closing replaces the URL instead.
+  const isEditing = route.name === "event" && route.edit;
+  const editOpenedInAppRef = React.useRef(false);
+  const handleEditingChange = (open: boolean) => {
+    if (route.name !== "event" || open === route.edit) return;
+    if (open) {
+      editOpenedInAppRef.current = true;
+      navigate({ name: "event", eventId: route.eventId, hostToken: route.hostToken, edit: true });
+    } else if (editOpenedInAppRef.current) {
+      editOpenedInAppRef.current = false;
+      window.history.back();
+    } else {
+      navigate({ name: "event", eventId: route.eventId, hostToken: route.hostToken }, { replace: true });
+    }
+  };
+
   const handleLoadDemo = (id: string = "demo-gathering", hostToken?: string) => {
     navigate({ name: "event", eventId: id, hostToken });
   };
@@ -328,6 +367,8 @@ export default function App() {
         onReopen={handleReopen}
         onCancelEvent={handleCancelEvent}
         onUpdateEvent={handleUpdateEvent}
+        isEditing={isEditing}
+        onEditingChange={handleEditingChange}
         onSubmitComment={handleSubmitComment}
         onSelectAiRestaurant={handleSelectAiRestaurant}
         isShareModalOpen={isShareModalOpen}
@@ -423,6 +464,8 @@ export default function App() {
             onReopen={handleReopen}
             onCancelEvent={handleCancelEvent}
             onUpdateEvent={handleUpdateEvent}
+            isEditing={isEditing}
+            onEditingChange={handleEditingChange}
             onSubmitComment={handleSubmitComment}
         onSelectAiRestaurant={handleSelectAiRestaurant}
             onCopySuccess={() => addToast("success", "已成功複製到剪貼簿！")}

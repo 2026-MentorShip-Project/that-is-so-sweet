@@ -12,6 +12,7 @@ import { MiniMonthPicker } from "./MiniMonthPicker";
 import { EventInfoCard } from "./EventInfoCard";
 import { cardStyle, iconBtnStyle } from "./mobileStyles";
 import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../lib/api";
+import { CREATE_EVENT_LIMITS } from "../lib/eventsApi";
 
 interface CreateWizardProps {
   onSubmit: (input: CreateEventInput) => Promise<void>;
@@ -145,11 +146,12 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
   const activeSlots = slots.filter((s) => s.date === activeDate).sort((a, b) => a.time.localeCompare(b.time));
   const datesMissingSlots = selectedDates.filter((d) => !slots.some((s) => s.date === d));
 
+  const tooManySlots = slots.length > CREATE_EVENT_LIMITS.maxSlots;
   const canNext =
     step === 0
-      ? !!title.trim() && !!responseDeadline
+      ? !!title.trim() && !!hostName.trim() && !!responseDeadline
       : step === 1
-      ? selectedDates.length > 0 && datesMissingSlots.length === 0
+      ? selectedDates.length > 0 && datesMissingSlots.length === 0 && !tooManySlots
       : true;
 
   const handleSubmit = () => {
@@ -261,6 +263,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
 
               <Input
                 label={infoLabel("主揪暱稱", "hostName")}
+                required
                 placeholder="例如：阿傑、Wally"
                 value={hostName}
                 onChange={(e) => setHostName(e.target.value)}
@@ -280,7 +283,7 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
                 onChange={handleLocationChange}
                 hint={isResolvingLocation ? "解析地點中..." : location?.url ? "已附上 Google Maps 連結" : undefined}
               />
-              <Input label="活動說明（選填）" placeholder="例如：想吃鍋物，歡迎推薦口袋名單" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Input label="活動說明（選填）" placeholder="例如：想吃鍋物，歡迎推薦口袋名單" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={CREATE_EVENT_LIMITS.description} />
             </div>
           </div>
         )}
@@ -439,6 +442,12 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
                     </Button>
                   </div>
                 )}
+              </div>
+            )}
+            {tooManySlots && (
+              <div style={{ marginTop: 10, fontSize: 11, color: "var(--color-hot)", display: "flex", alignItems: "center", gap: 4 }}>
+                <AlertTriangle size={12} />
+                候選時段最多 {CREATE_EVENT_LIMITS.maxSlots} 個，目前 {slots.length} 個
               </div>
             )}
             {selectedDates.length > 0 && datesMissingSlots.length > 0 && (

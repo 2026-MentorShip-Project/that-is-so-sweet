@@ -7,6 +7,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { HostDashboard } from "./components/HostDashboard";
 import { GoogleLoginOverlay } from "./components/GoogleLoginOverlay";
 import { Toast } from "./components/Toast";
+import { EventCreatedModal } from "./components/EventCreatedModal";
 import { MobileApp } from "./mobile/MobileApp";
 import { useViewport } from "./lib/useViewport";
 import { useFakeAuth } from "./lib/fakeAuth";
@@ -18,10 +19,11 @@ import {
   UpdateEventInput,
   AiSelectedRestaurant,
   ToastMessage,
+  EventSummary,
+  CreateEventResult,
 } from "./types";
 import {
   fetchEvent,
-  createEvent,
   submitResponse,
   finalizeEvent,
   reopenEvent,
@@ -31,8 +33,11 @@ import {
   submitComment,
   getHostToken,
   getVisitedEvents,
+  saveUserNickname,
   VisitedEventItem
 } from "./lib/api";
+import * as eventsApi from "./lib/eventsApi";
+import { ApiError } from "./lib/http";
 import { RefreshCw, AlertTriangle } from "lucide-react";
 
 export default function App() {
@@ -52,6 +57,11 @@ export default function App() {
   const [historyList, setHistoryList] = useState<VisitedEventItem[]>([]);
   const { user, isAuthenticating, login, logout } = useFakeAuth();
   const [homeView, setHomeView] = useState<"dashboard" | "create">("dashboard");
+  // "我揪的團" comes from GET /api/events/?owner=me (per account, not per device).
+  const [myEvents, setMyEvents] = useState<EventSummary[]>([]);
+  const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(false);
+  const [myEventsError, setMyEventsError] = useState<string | null>(null);
+  const [createdEvent, setCreatedEvent] = useState<(CreateEventResult & { title: string }) | null>(null);
   // Host identity is only honored while "logged in" — logging out strips
   // host-only UI everywhere immediately, even on an event page already open,
   // without touching the stored per-event hostToken (logging back in
@@ -144,24 +154,41 @@ export default function App() {
     }
   }, [isHistoryOpen, currentEventId, user]);
 
+  const loadMyEvents = async () => {
+    setIsLoadingMyEvents(true);
+    setMyEventsError(null);
+    try {
+      setMyEvents(await eventsApi.listMyEvents());
+    } catch (err) {
+      setMyEventsError(err instanceof ApiError ? err.displayMessage : "載入活動清單失敗");
+    } finally {
+      setIsLoadingMyEvents(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && !currentEventId && homeView === "dashboard") loadMyEvents();
+  }, [user, currentEventId, homeView]);
+
   // Handlers
   const handleCreateEvent = async (input: CreateEventInput) => {
+    const invalid = eventsApi.validateCreateEventInput(input);
+    if (invalid) {
+      addToast("error", invalid);
+      return;
+    }
     setIsLoading(true);
     try {
-      const result = await createEvent(input);
-      setEventData(result.event);
-      setCurrentEventId(result.event.id);
-      setCurrentHostToken(result.hostToken);
-
-      // Update URL hash without full reload. We already have the event data
-      // in state, so tell the hashchange listener to skip its redundant fetch.
-      skipNextHashLoadRef.current = result.event.id;
-      window.location.hash = `event=${result.event.id}&hostToken=${result.hostToken}`;
-
+      const result = await eventsApi.createEvent(input);
+      if (input.hostName) saveUserNickname(input.hostName);
+      // GET /api/events/{id} isn't wired up yet, so instead of opening the
+      // event page, show the share link and go back to "我揪的團" (which
+      // refetches and now includes the new event).
+      setCreatedEvent({ ...result, title: input.title });
+      setHomeView("dashboard");
       addToast("success", "活動成功建立！專屬連結已產生");
-      setIsShareModalOpen(true);
-    } catch (err: any) {
-      addToast("error", err.message || "建立活動失敗，請重試");
+    } catch (err) {
+      addToast("error", err instanceof ApiError ? err.displayMessage : "建立活動失敗，請重試");
     } finally {
       setIsLoading(false);
     }
@@ -297,6 +324,12 @@ export default function App() {
         isHistoryOpen={isHistoryOpen}
         setIsHistoryOpen={setIsHistoryOpen}
         historyList={historyList}
+        myEvents={myEvents}
+        isLoadingMyEvents={isLoadingMyEvents}
+        myEventsError={myEventsError}
+        onRetryMyEvents={loadMyEvents}
+        createdEvent={createdEvent}
+        onCloseCreatedEvent={() => setCreatedEvent(null)}
         onSelectEvent={(id) => {
           window.location.hash = `event=${id}`;
         }}
@@ -360,7 +393,10 @@ export default function App() {
             <CreateEvent onSubmit={handleCreateEvent} isLoading={isLoading} hostEmail={user.email} />
           ) : (
             <HostDashboard
-              events={historyList}
+              events={myEvents}
+              isLoadingEvents={isLoadingMyEvents}
+              eventsError={myEventsError}
+              onRetryEvents={loadMyEvents}
               onCreateEvent={() => setHomeView("create")}
               onSelectEvent={(id) => {
                 window.location.hash = `event=${id}`;
@@ -402,6 +438,15 @@ export default function App() {
           onClose={() => setIsShareModalOpen(false)}
           event={eventData}
           hostToken={effectiveHostToken || undefined}
+          onCopySuccess={() => addToast("success", "已成功複製連結！")}
+        />
+      )}
+
+      {createdEvent && (
+        <EventCreatedModal
+          title={createdEvent.title}
+          shareUrl={createdEvent.shareUrl}
+          onClose={() => setCreatedEvent(null)}
           onCopySuccess={() => addToast("success", "已成功複製連結！")}
         />
       )}

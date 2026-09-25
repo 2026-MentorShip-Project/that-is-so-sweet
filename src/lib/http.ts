@@ -1,0 +1,73 @@
+// Thin fetch wrapper for the real jiu-sync backend (Django REST).
+//
+// Auth is temporary: the Google login in this app is still simulated (see
+// ./fakeAuth.ts), so there is no real JWT flow yet. Until the Auth module is
+// wired up, the access token is pasted in manually — either via
+// `localStorage.setItem("jiu_access_token", "<token>")` in the devtools
+// console, or `VITE_DEV_ACCESS_TOKEN` in `.env.local`. localStorage wins so a
+// fresh token can be swapped in without restarting Vite.
+
+const ACCESS_TOKEN_KEY = "jiu_access_token";
+
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
+
+export function getAccessToken(): string | null {
+  try {
+    const stored = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (stored) return stored;
+  } catch {}
+  return import.meta.env.VITE_DEV_ACCESS_TOKEN || null;
+}
+
+export interface ApiFieldError {
+  field: string;
+  code: string | null;
+  message: string;
+}
+
+// Mirrors the backend's ApiError body: { message, code, errors? }.
+export class ApiError extends Error {
+  status: number;
+  code: string | null;
+  errors: ApiFieldError[];
+
+  constructor(status: number, message: string, code: string | null = null, errors: ApiFieldError[] = []) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.errors = errors;
+  }
+
+  // Field errors are more useful to the user than the generic
+  // "請求包含錯誤欄位" message, so surface them when present.
+  get displayMessage(): string {
+    if (this.errors.length > 0) return this.errors.map((e) => e.message).join("；");
+    return this.message;
+  }
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  if (init.body !== undefined) headers.set("Content-Type", "application/json");
+  const token = getAccessToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError(0, "無法連線到伺服器，請確認後端是否已啟動");
+  }
+
+  const body = res.status === 204 ? null : await res.json().catch(() => null);
+
+  if (!res.ok) {
+    if (res.status === 401 && !token) {
+      throw new ApiError(401, "尚未設定 access token，請先登入", "UNAUTHORIZED");
+    }
+    throw new ApiError(res.status, body?.message || `請求失敗（HTTP ${res.status}）`, body?.code ?? null, body?.errors ?? []);
+  }
+  return body as T;
+}

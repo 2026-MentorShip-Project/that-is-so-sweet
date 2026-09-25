@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect } from "react";
 import { Zap, RotateCw, ChevronUp, ChevronDown, List, CalendarDays, AlertTriangle, Info, X } from "lucide-react";
 import { EventData, AvailabilityStatus, SubmitResponseInput } from "../../types";
 import { formatChineseWeekday } from "../../share/calendar";
-import { verifyResponse } from "../../share/api";
+import { ApiError, verifyResponse } from "../../share/api";
 import { isVotingOpen, formatDeadline, getLifecycleStatus } from "../../share/eventStatus";
 import { formatSlotTime } from "../../share/slots";
 import { Button, Input } from "../../design-system/components";
@@ -155,18 +155,18 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
     }
     try {
       const verified = await verifyResponse(event.id, cleanLoginNickname, loginPassword.trim());
-      const matched = event.responses.find((r) => r.nickname.toLowerCase() === cleanLoginNickname.toLowerCase());
-      setEditingParticipantId(verified.responseId);
+      setEditingParticipantId(verified.id);
       setAccessToken(verified.accessToken);
-      setNickname(matched?.nickname || cleanLoginNickname);
-      setEmail(matched?.email || "");
+      setNickname(verified.nickname);
+      setEmail(verified.email || "");
       setPassword(loginPassword.trim());
-      setComment(matched?.comment || "");
-      setAvailability(matched?.availability || defaultAvailability());
+      setComment(event.responses.find((r) => r.id === verified.id)?.comment || "");
+      setAvailability({ ...defaultAvailability(), ...verified.availability });
       setLoginError("");
       setMode("edit");
-    } catch {
-      setLoginError("暱稱或手機末三碼不正確");
+    } catch (err) {
+      const identityFailed = err instanceof ApiError && err.code === "IDENTITY_VERIFICATION_FAILED";
+      setLoginError(!identityFailed && err instanceof Error ? err.message : "暱稱或手機末三碼不正確");
     }
   };
 
@@ -239,6 +239,8 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
         availability,
         comment: comment.trim(),
       });
+      setEditingParticipantId(null);
+      setAccessToken(null);
       setMode("readonly");
       onSubmitted?.();
     } catch {
@@ -679,7 +681,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
       )}
 
       {editable && (
-        <Input size="sm" label="對此發起此次投票的留言" placeholder="例如：19:00 才能到" value={comment} onChange={(e) => setComment(e.target.value)} disabled={!editable} />
+        <Input size="sm" label="對此發起此次投票的留言" placeholder="例如：19:00 才能到" value={comment} onChange={(e) => setComment(e.target.value)} disabled={mode !== "create"} hint={mode === "edit" ? "更新投票時無法修改留言" : undefined} />
       )}
       </div>
       )}

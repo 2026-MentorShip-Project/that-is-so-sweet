@@ -100,16 +100,23 @@ export default function App() {
     setIsLoading(true);
     setPageError(null);
     try {
-      // Priority: tokenParam -> LocalStorage token
-      const storedToken = getHostToken(id);
-      const effectiveToken = tokenParam || storedToken || undefined;
+      if (id.startsWith("demo-")) {
+        // Demo events only exist in the localStorage store.
+        // Priority: tokenParam -> LocalStorage token
+        const storedToken = getHostToken(id);
+        const effectiveToken = tokenParam || storedToken || undefined;
 
-      const data = await fetchEvent(id, effectiveToken);
-      setEventData(data);
+        const data = await fetchEvent(id, effectiveToken);
+        setEventData(data);
+        setCurrentHostToken(effectiveToken || null);
+      } else {
+        const data = await eventsApi.getEvent(id);
+        setEventData(data);
+        setCurrentHostToken(data.isOwner ? eventsApi.API_OWNER_HOST_TOKEN : null);
+      }
       setCurrentEventId(id);
-      setCurrentHostToken(effectiveToken || null);
     } catch (err: any) {
-      setPageError(err.message || "載入活動失敗");
+      setPageError(err instanceof ApiError ? err.displayMessage : err.message || "載入活動失敗");
       setEventData(null);
     } finally {
       setIsLoading(false);

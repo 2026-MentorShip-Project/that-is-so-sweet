@@ -1,11 +1,59 @@
 // Events module (模組01/03/07/10) against the real backend. The rest of the
 // app still goes through ./api.ts (localStorage) until each endpoint is
 // migrated.
-import { CreateEventInput, CreateEventRequest, CreateEventResult, EventSummary } from "../types";
+import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventSummary } from "../types";
 import { apiFetch } from "./http";
 
 export function listMyEvents(): Promise<EventSummary[]> {
   return apiFetch<EventSummary[]>("/api/events/?owner=me");
+}
+
+// The event page components compare a hostToken against event.hostToken to
+// decide host UI. The backend has no host tokens — ownership comes from the
+// logged-in account (isOwner) — so owner events get this fixed placeholder on
+// both sides of that comparison.
+export const API_OWNER_HOST_TOKEN = "__api_owner__";
+
+// Adapts the backend Event to the EventData shape both UI trees render.
+// Comments come from a separate endpoint (GET /api/events/{id}/comments/, not
+// wired up yet), and the API has no createdAt/updatedAt on this payload.
+export function fromApiEvent(e: ApiEvent): EventData & { isOwner: boolean } {
+  return {
+    id: e.id,
+    hostToken: e.isOwner ? API_OWNER_HOST_TOKEN : "",
+    title: e.title,
+    description: e.description || undefined,
+    location: e.location ? { text: e.location } : undefined,
+    hostName: e.hostNickname,
+    hostEmail: e.hostEmail || undefined,
+    mode: e.mode,
+    responseDeadline: e.responseDeadline,
+    slots: e.slots.map((s) => ({
+      id: s.id,
+      date: s.date,
+      time: s.time ? s.time.slice(0, 5) : "",
+      label: s.label || undefined,
+    })),
+    responses: e.responses.map((r) => ({
+      id: r.id,
+      nickname: r.nickname,
+      comment: r.comment || undefined,
+      availability: Object.fromEntries(r.slotAvailabilities.map((a) => [a.slotId, a.availability])) as Record<string, AvailabilityStatus>,
+      updatedAt: "",
+    })),
+    comments: [],
+    status: e.status,
+    finalSlotId: e.finalSlotId || undefined,
+    finalNote: e.finalNote || undefined,
+    createdAt: "",
+    updatedAt: "",
+    isOwner: e.isOwner,
+  };
+}
+
+export async function getEvent(id: string): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(`/api/events/${encodeURIComponent(id)}/`, { optionalAuth: true });
+  return fromApiEvent(data);
 }
 
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API

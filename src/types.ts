@@ -179,3 +179,26 @@ export interface CreateEventResult {
   id: string;
   shareUrl: string;
 }
+
+export interface ApiSlotAvailability {
+  slotId: string;
+  availability: AvailabilityStatus;
+}
+
+export interface ApiParticipantResponse {
+  id: string;
+  nickname: string;
+  comment: string | null;
+  slotAvailabilities: ApiSlotAvailability[];
+}
+
+// GET /api/events/{id}/ — full event for the event page.
+export interface ApiEvent extends Omit<EventSummary, 'responseCount' | 'slots'> {
+  hostEmail: string | null;
+  slots: (ApiSlot & { id: string })[];
+  slotSummary: { slotId: string; available: number; if_needed: number; unavailable: number }[];
+  responses: ApiParticipantResponse[];
+  finalSlotId: string | null;
+  finalNote: string | null;
+  finalAttendees: { id: string; nickname: string; comment: string | null }[];
+}

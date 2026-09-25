@@ -53,3 +53,24 @@ export function formatDraftSavedAt(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+// Baseline marker for a form that was filled from an old draft: such a form
+// is always saved on leave, never compared against the blank defaults.
+export const DRAFT_RESTORED = "__restored__";
+
+export interface LeaveDraftState {
+  hasPendingDraft: boolean; // old draft shown, host hasn't picked resume/discard
+  submitted: boolean; // event was created successfully
+  baseline: string | null; // settled initial form (JSON), null until settled
+  snapshot: string; // current form (JSON)
+}
+
+// What to do with the draft when the host leaves the create page or closes
+// the browser. The draft is written only at that moment — not while typing
+// and not on a failed submit, where the form simply keeps its contents.
+export function draftActionOnLeave(s: LeaveDraftState): "save" | "clear" | "skip" {
+  if (s.hasPendingDraft || s.submitted || s.baseline === null) return "skip";
+  // A restored draft's baseline is DRAFT_RESTORED, which no form snapshot equals.
+  if (s.snapshot === s.baseline) return "clear";
+  return "save";
+}

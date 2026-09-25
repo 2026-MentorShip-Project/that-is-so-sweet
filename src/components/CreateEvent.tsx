@@ -11,7 +11,6 @@ import { MiniMonthPicker } from "../mobile/MiniMonthPicker";
 import { cardStyle, SectionLabel } from "../mobile/mobileStyles";
 import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../lib/api";
 import { CREATE_EVENT_LIMITS } from "../lib/eventsApi";
-import { clearEventDraft } from "../lib/eventDraft";
 import { useEventDraft } from "../lib/useEventDraft";
 import { DraftBanner } from "./DraftBanner";
 
@@ -52,7 +51,7 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
 
   const isDateOnly = mode === "date_only";
 
-  const { pendingDraft, keepDraft, discardDraft } = useEventDraft({
+  const { pendingDraft, keepDraft, discardDraft, finishDraft } = useEventDraft({
     title,
     hostName,
     description,
@@ -182,8 +181,9 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
       responseDeadline: localValueToIso(responseDeadline),
       slots,
     });
-    // Only a successful create ends the draft; validation or API failures keep it.
-    if (created) clearEventDraft();
+    // Only a successful create ends the draft. On failure the form stays on
+    // screen with its contents; nothing is written to storage.
+    if (created) finishDraft();
   };
 
   return (

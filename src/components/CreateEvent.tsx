@@ -11,9 +11,12 @@ import { MiniMonthPicker } from "../mobile/MiniMonthPicker";
 import { cardStyle, SectionLabel } from "../mobile/mobileStyles";
 import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../lib/api";
 import { CREATE_EVENT_LIMITS } from "../lib/eventsApi";
+import { clearEventDraft } from "../lib/eventDraft";
+import { useEventDraft } from "../lib/useEventDraft";
+import { DraftBanner } from "./DraftBanner";
 
 interface CreateEventProps {
-  onSubmit: (input: CreateEventInput) => Promise<void>;
+  onSubmit: (input: CreateEventInput) => Promise<boolean>;
   isLoading: boolean;
   hostEmail: string;
 }
@@ -48,6 +51,37 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
   const locationRequestRef = useRef(0);
 
   const isDateOnly = mode === "date_only";
+
+  const { pendingDraft, keepDraft, discardDraft } = useEventDraft({
+    title,
+    hostName,
+    description,
+    mode,
+    responseDeadline,
+    selectedDates,
+    slots,
+    location,
+    locationInput,
+  });
+
+  const handleUseDraft = () => {
+    if (!pendingDraft) return;
+    setTitle(pendingDraft.title);
+    setHostName(pendingDraft.hostName);
+    setDescription(pendingDraft.description);
+    setMode(pendingDraft.mode);
+    setResponseDeadline(pendingDraft.responseDeadline);
+    setSelectedDates(pendingDraft.selectedDates);
+    setSlots(pendingDraft.slots);
+    setLocation(pendingDraft.location);
+    setLocationInput(pendingDraft.locationInput);
+    if (pendingDraft.selectedDates.length > 0) {
+      setActiveDate([...pendingDraft.selectedDates].sort()[0]);
+      setViewDate(new Date(`${[...pendingDraft.selectedDates].sort()[0]}T00:00:00`));
+    }
+    keepDraft();
+  };
+
 
   const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -135,10 +169,10 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
   const tooManySlots = slots.length > CREATE_EVENT_LIMITS.maxSlots;
   const canSubmit = !!title.trim() && !!hostName.trim() && !!responseDeadline && selectedDates.length > 0 && datesMissingSlots.length === 0 && !tooManySlots;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
     if (!isDateOnly) saveRecentSlotPresets(slots);
-    onSubmit({
+    const created = await onSubmit({
       title: title.trim(),
       hostName: hostName.trim(),
       hostEmail: hostEmail.trim(),
@@ -148,6 +182,8 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
       responseDeadline: localValueToIso(responseDeadline),
       slots,
     });
+    // Only a successful create ends the draft; validation or API failures keep it.
+    if (created) clearEventDraft();
   };
 
   return (
@@ -155,6 +191,7 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.6fr) minmax(320px,1fr)", gap: 20, alignItems: "start" }}>
         {/* Left column: 基本資訊 + 候選日期與時段 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
+          {pendingDraft && <DraftBanner savedAt={pendingDraft.savedAt} onResume={handleUseDraft} onDiscard={discardDraft} />}
           <div style={cardStyle}>
             <SectionLabel title="基本活動資訊" />
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

@@ -188,11 +188,13 @@ export default function App() {
   }, [user, currentEventId, homeView]);
 
   // Handlers
-  const handleCreateEvent = async (input: CreateEventInput) => {
+  // 回傳值供 CreateEvent/CreateWizard 判斷是否要清空草稿（草稿只在真的
+  // 建立成功時清，驗證失敗或送出失敗都要保留，見 eventDraft.ts）。
+  const handleCreateEvent = async (input: CreateEventInput): Promise<boolean> => {
     const invalid = eventsApi.validateCreateEventInput(input);
     if (invalid) {
       addToast("error", invalid);
-      return;
+      return false;
     }
     setIsLoading(true);
     try {
@@ -204,8 +206,10 @@ export default function App() {
       setCreatedEvent({ ...result, title: input.title });
       setHomeView("dashboard");
       addToast("success", "活動成功建立！專屬連結已產生");
+      return true;
     } catch (err) {
       addToast("error", err instanceof ApiError ? err.displayMessage : "建立活動失敗，請重試");
+      return false;
     } finally {
       setIsLoading(false);
     }

@@ -20,7 +20,7 @@ interface MobileAppProps {
   isLoading: boolean;
   pageError: string | null;
   onGoHome: () => void;
-  onCreateEvent: (input: CreateEventInput) => Promise<void>;
+  onCreateEvent: (input: CreateEventInput) => Promise<boolean>;
   onRespond: (input: SubmitResponseInput) => Promise<void>;
   onFinalize: (finalSlotId: string, finalNote?: string) => Promise<void>;
   onReopen: (newDeadline?: string) => Promise<void>;

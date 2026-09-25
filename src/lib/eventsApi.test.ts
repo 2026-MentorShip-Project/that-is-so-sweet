@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, API_OWNER_HOST_TOKEN } from "./eventsApi";
+import { createEvent, getEvent, listMyEvents, updateEvent, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
 import { ApiError } from "./http";
 import { CreateEventInput } from "../types";
 
@@ -260,5 +260,79 @@ describe("getEvent", () => {
     const expired = await getEvent("WpHm5SPO").catch((e) => e);
     expect(expired.status).toBe(410);
     expect(expired.code).toBe("LINK_EXPIRED");
+  });
+});
+
+describe("updateEvent", () => {
+  const original = fromApiEvent(apiEvent as never);
+  const unchanged = {
+    title: "週末聚餐揪團",
+    description: "大家投票選個時間吃飯",
+    location: { text: "台北市信義區" },
+    hostName: "小明",
+    hostEmail: "host@example.com",
+    responseDeadline: "2026-09-20T15:59:00.000Z", // same instant as original
+  };
+
+  it("PATCHes only the fields the host changed and returns the updated event", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, title: "改過的標題" }));
+
+    const updated = await updateEvent(original, { ...unchanged, title: "改過的標題" });
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/");
+    expect(init.method).toBe("PATCH");
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
+    // The past deadline is left out — resending it would fail DEADLINE_IN_PAST.
+    expect(JSON.parse(init.body as string)).toEqual({ title: "改過的標題" });
+    expect(updated.title).toBe("改過的標題");
+    expect(updated.isOwner).toBe(true);
+  });
+
+  it("sends null when the host clears the description or location", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, description: null, location: null }));
+
+    await updateEvent(original, { ...unchanged, description: "", location: undefined });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({ description: null, location: null });
+  });
+
+  it("sends a changed nickname, email and deadline", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, apiEvent));
+
+    await updateEvent(original, { ...unchanged, hostName: "阿傑", hostEmail: "new@example.com", responseDeadline: "2026-10-01T15:59:00.000Z" });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({
+      hostNickname: "阿傑",
+      hostEmail: "new@example.com",
+      responseDeadline: "2026-10-01T15:59:00.000Z",
+    });
+  });
+
+  it("leaves hostEmail out when cleared, since the backend rejects blank or null emails", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, apiEvent));
+
+    await updateEvent(original, { ...unchanged, title: "新標題", hostEmail: "" });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({ title: "新標題" });
+  });
+
+  it("skips the request when nothing changed", async () => {
+    const result = await updateEvent(original, unchanged);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual(original);
+  });
+
+  it("surfaces why the backend refused the edit", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(409, { message: "活動已定案或取消，無法編輯", code: "EVENT_NOT_ACTIVE" }));
+    const notActive = await updateEvent(original, { ...unchanged, title: "新標題" }).catch((e) => e);
+    expect(notActive.status).toBe(409);
+    expect(notActive.displayMessage).toBe("活動已定案或取消，無法編輯");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, { message: "僅活動擁有者可編輯此活動", code: "FORBIDDEN" }));
+    const forbidden = await updateEvent(original, { ...unchanged, title: "新標題" }).catch((e) => e);
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.displayMessage).toBe("僅活動擁有者可編輯此活動");
   });
 });

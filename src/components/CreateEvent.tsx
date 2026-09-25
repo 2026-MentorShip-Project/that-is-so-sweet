@@ -10,6 +10,7 @@ import { MonthCalendar } from "../mobile/MonthCalendar";
 import { MiniMonthPicker } from "../mobile/MiniMonthPicker";
 import { cardStyle, SectionLabel } from "../mobile/mobileStyles";
 import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../lib/api";
+import { CREATE_EVENT_LIMITS } from "../lib/eventsApi";
 
 interface CreateEventProps {
   onSubmit: (input: CreateEventInput) => Promise<void>;
@@ -131,7 +132,8 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
   const activeSlots = slots.filter((s) => s.date === activeDate).sort((a, b) => a.time.localeCompare(b.time));
   const datesMissingSlots = selectedDates.filter((d) => !slots.some((s) => s.date === d));
 
-  const canSubmit = !!title.trim() && !!responseDeadline && selectedDates.length > 0 && datesMissingSlots.length === 0;
+  const tooManySlots = slots.length > CREATE_EVENT_LIMITS.maxSlots;
+  const canSubmit = !!title.trim() && !!hostName.trim() && !!responseDeadline && selectedDates.length > 0 && datesMissingSlots.length === 0 && !tooManySlots;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -176,7 +178,7 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
-                <Input label="主揪暱稱" placeholder="例如：阿傑、Wally" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+                <Input label="主揪暱稱" required placeholder="例如：阿傑、Wally" value={hostName} onChange={(e) => setHostName(e.target.value)} />
                 <Input label="主揪 Email" type="email" value={hostEmail} disabled hint="使用登入的 Google 帳號，不可修改" />
               </div>
               <Input
@@ -186,7 +188,7 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
                 onChange={handleLocationChange}
                 hint={isResolvingLocation ? "解析地點中..." : location?.url ? "已附上 Google Maps 連結" : undefined}
               />
-              <Input label="活動說明（選填）" placeholder="例如：想吃鍋物，歡迎推薦口袋名單" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Input label="活動說明（選填）" placeholder="例如：想吃鍋物，歡迎推薦口袋名單" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={CREATE_EVENT_LIMITS.description} />
             </div>
           </div>
 
@@ -367,6 +369,12 @@ export const CreateEvent: React.FC<CreateEventProps> = ({ onSubmit, isLoading, h
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+            {tooManySlots && (
+              <div style={{ marginTop: 10, fontSize: 11, color: "var(--color-hot)", display: "flex", alignItems: "center", gap: 4 }}>
+                <AlertTriangle size={12} />
+                候選時段最多 {CREATE_EVENT_LIMITS.maxSlots} 個，目前 {slots.length} 個
               </div>
             )}
             {selectedDates.length > 0 && datesMissingSlots.length > 0 && (

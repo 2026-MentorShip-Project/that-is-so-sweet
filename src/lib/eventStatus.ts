@@ -1,4 +1,4 @@
-import { EventData } from "../types.js";
+import { DisplayStatus, EventData, EventSummary } from "../types.js";
 import { to12Hour } from "./slots";
 
 const DAY_MS = 86400000;
@@ -149,4 +149,29 @@ export function formatRemaining(iso: string): string {
   if (days > 0) return `剩餘 ${days} 天`;
   if (hours > 0) return `剩餘 ${hours} 小時`;
   return "剩餘不到 1 小時";
+}
+
+// --- Backend displayStatus (GET /api/events/?owner=me) --- //
+
+export interface DisplayStatusInfo {
+  label: string;
+  badge: "success" | "hot" | "primary" | "muted" | "dark";
+  tab: HostListTab;
+}
+
+const DISPLAY_STATUS_INFO: Record<Exclude<DisplayStatus, "link_expired">, DisplayStatusInfo> = {
+  voting_open: { label: "統計時間中", badge: "success", tab: "active" },
+  voting_closed_pending: { label: "投票已截止，待拍板", badge: "hot", tab: "active" },
+  finalized_upcoming: { label: "已敲定，待舉辦", badge: "primary", tab: "finalized" },
+  finalized_past: { label: "活動已結束", badge: "muted", tab: "finalized" },
+  cancelled: { label: "活動已取消", badge: "dark", tab: "cancelled" },
+};
+
+// link_expired covers both "finalized 7+ days ago" and "cancelled 7+ days
+// ago", so its tab follows the raw status rather than a fixed bucket.
+export function getDisplayStatusInfo(event: Pick<EventSummary, "displayStatus" | "status">): DisplayStatusInfo {
+  if (event.displayStatus === "link_expired") {
+    return { label: "連結已失效", badge: "muted", tab: event.status === "cancelled" ? "cancelled" : "finalized" };
+  }
+  return DISPLAY_STATUS_INFO[event.displayStatus] ?? { label: event.displayStatus, badge: "muted", tab: "active" };
 }

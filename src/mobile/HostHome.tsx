@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, MapPin, Clock, Users, RefreshCw } from "lucide-react";
 import { TopBar } from "./TopBar";
 import { UserMenu } from "./UserMenu";
-import { VisitedEventItem } from "../lib/api";
-import { getLifecycleStatusFromSnapshot, categorizeForHostTabs, HostListTab } from "../lib/eventStatus";
+import { EventSummary } from "../types";
+import { getDisplayStatusInfo, formatDeadline, HostListTab } from "../lib/eventStatus";
 import { DEMO_EVENTS, getDemoEventBadge } from "../lib/demoEvents";
 import { Badge, Button } from "../design-system/components";
 import { cardStyle, SectionLabel } from "./mobileStyles";
@@ -12,7 +12,10 @@ import { FakeUser } from "../lib/fakeAuth";
 interface HostHomeProps {
   user: FakeUser;
   onLogout: () => void;
-  events: VisitedEventItem[];
+  events: EventSummary[];
+  isLoadingEvents: boolean;
+  eventsError: string | null;
+  onRetryEvents: () => void;
   onCreateEvent: () => void;
   onSelectEvent: (id: string) => void;
   onLoadDemo: (id: string, hostToken?: string) => void;
@@ -20,22 +23,21 @@ interface HostHomeProps {
 
 type TabKey = "demo" | HostListTab | "all";
 
-// "已取消" is deliberately not a filterable tab here — PRD 2026-09-02: a
-// real host should never see a cancelled activity in "我揪的團" under any
-// circumstance. The only place a cancelled example is still shown is the
-// dashed 示範活動 tab below, which is demo data, not the host's own events.
+// Cancelled events are returned by GET /api/events/?owner=me since the
+// 2026-09-15 API revision (they stay listed, turning into link_expired after
+// 7 days), so they get their own tab.
 const TABS: { key: TabKey; label: string }[] = [
   { key: "demo", label: "示範活動" },
   { key: "all", label: "全部" },
   { key: "active", label: "進行中" },
   { key: "finalized", label: "已敲定" },
+  { key: "cancelled", label: "已取消" },
 ];
 
-export const HostHome: React.FC<HostHomeProps> = ({ user, onLogout, events, onCreateEvent, onSelectEvent, onLoadDemo }) => {
+export const HostHome: React.FC<HostHomeProps> = ({ user, onLogout, events, isLoadingEvents, eventsError, onRetryEvents, onCreateEvent, onSelectEvent, onLoadDemo }) => {
   const [tab, setTab] = useState<TabKey>("all");
-  const hostedEvents = events.filter((e) => e.isHost && categorizeForHostTabs(getLifecycleStatusFromSnapshot(e).key) !== "cancelled");
-  const visibleEvents =
-    tab === "all" || tab === "demo" ? hostedEvents : hostedEvents.filter((h) => categorizeForHostTabs(getLifecycleStatusFromSnapshot(h).key) === tab);
+  const hostedEvents = events.filter((e) => e.isOwner);
+  const visibleEvents = tab === "all" || tab === "demo" ? hostedEvents : hostedEvents.filter((h) => getDisplayStatusInfo(h).tab === tab);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
@@ -114,6 +116,18 @@ export const HostHome: React.FC<HostHomeProps> = ({ user, onLogout, events, onCr
                 })}
               </div>
             </>
+          ) : isLoadingEvents && events.length === 0 ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "24px 0", color: "var(--color-muted)", fontSize: 12 }}>
+              <RefreshCw size={14} className="animate-spin" />
+              正在載入你的活動...
+            </div>
+          ) : eventsError ? (
+            <div style={{ textAlign: "center", padding: "20px 12px", color: "var(--color-hot)", fontSize: 12, border: "1px dashed var(--color-border-strong)", borderRadius: "var(--radius-md)" }}>
+              <div style={{ marginBottom: 8 }}>{eventsError}</div>
+              <Button variant="secondary" size="xs" icon={<RefreshCw size={12} />} onClick={onRetryEvents}>
+                重新載入
+              </Button>
+            </div>
           ) : visibleEvents.length === 0 ? (
             <div style={{ textAlign: "center", padding: "18px 0", color: "var(--color-muted)", fontSize: 12 }}>
               {hostedEvents.length === 0 ? "目前尚無紀錄，點上方「建立活動」開始揪團吧！" : "這個分類目前沒有活動"}
@@ -121,7 +135,7 @@ export const HostHome: React.FC<HostHomeProps> = ({ user, onLogout, events, onCr
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {visibleEvents.map((h) => {
-                const lifecycle = getLifecycleStatusFromSnapshot(h);
+                const statusInfo = getDisplayStatusInfo(h);
                 return (
                   <div
                     key={h.id}
@@ -131,10 +145,23 @@ export const HostHome: React.FC<HostHomeProps> = ({ user, onLogout, events, onCr
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 13, fontWeight: 800, color: "var(--color-ink)" }}>{h.title}</span>
                       <Badge variant="secondary" size="sm">主揪</Badge>
-                      <Badge variant={lifecycle.sublabel === "尚未投完" ? "success" : "muted"} size="sm">{lifecycle.label}</Badge>
+                      <Badge variant={statusInfo.badge} size="sm">{statusInfo.label}</Badge>
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--color-muted)", marginTop: 4 }}>
-                      上次查看：{new Date(h.updatedAt).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", fontSize: 10, color: "var(--color-muted)", marginTop: 6 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                        <Clock size={11} />
+                        截止 {formatDeadline(h.responseDeadline)}
+                      </span>
+                      {h.location && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                          <MapPin size={11} />
+                          {h.location}
+                        </span>
+                      )}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                        <Users size={11} />
+                        {h.responseCount} 人已回覆
+                      </span>
                     </div>
                   </div>
                 );

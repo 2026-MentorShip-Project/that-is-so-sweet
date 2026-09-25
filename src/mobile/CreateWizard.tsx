@@ -13,9 +13,12 @@ import { EventInfoCard } from "./EventInfoCard";
 import { cardStyle, iconBtnStyle } from "./mobileStyles";
 import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../lib/api";
 import { CREATE_EVENT_LIMITS } from "../lib/eventsApi";
+import { clearEventDraft } from "../lib/eventDraft";
+import { useEventDraft } from "../lib/useEventDraft";
+import { DraftBanner } from "../components/DraftBanner";
 
 interface CreateWizardProps {
-  onSubmit: (input: CreateEventInput) => Promise<void>;
+  onSubmit: (input: CreateEventInput) => Promise<boolean>;
   isLoading: boolean;
   onOpenHistory: () => void;
   hostEmail: string;
@@ -55,6 +58,37 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
   const locationRequestRef = useRef(0);
 
   const isDateOnly = mode === "date_only";
+
+  const { pendingDraft, keepDraft, discardDraft } = useEventDraft({
+    title,
+    hostName,
+    description,
+    mode,
+    responseDeadline,
+    selectedDates,
+    slots,
+    location,
+    locationInput,
+  });
+
+  const handleUseDraft = () => {
+    if (!pendingDraft) return;
+    setTitle(pendingDraft.title);
+    setHostName(pendingDraft.hostName);
+    setDescription(pendingDraft.description);
+    setMode(pendingDraft.mode);
+    setResponseDeadline(pendingDraft.responseDeadline);
+    setSelectedDates(pendingDraft.selectedDates);
+    setSlots(pendingDraft.slots);
+    setLocation(pendingDraft.location);
+    setLocationInput(pendingDraft.locationInput);
+    if (pendingDraft.selectedDates.length > 0) {
+      setActiveDate([...pendingDraft.selectedDates].sort()[0]);
+      setViewDate(new Date(`${[...pendingDraft.selectedDates].sort()[0]}T00:00:00`));
+    }
+    keepDraft();
+  };
+
 
   const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -154,9 +188,9 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
       ? selectedDates.length > 0 && datesMissingSlots.length === 0 && !tooManySlots
       : true;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isDateOnly) saveRecentSlotPresets(slots);
-    onSubmit({
+    const created = await onSubmit({
       title: title.trim(),
       hostName: hostName.trim(),
       hostEmail: hostEmail.trim(),
@@ -166,6 +200,8 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
       responseDeadline: localValueToIso(responseDeadline),
       slots,
     });
+    // Only a successful create ends the draft; validation or API failures keep it.
+    if (created) clearEventDraft();
   };
 
   const stepLabels = isDateOnly ? ["基本資訊", "候選日期", "活動投票預覽"] : STEP_LABELS;
@@ -245,6 +281,11 @@ export const CreateWizard: React.FC<CreateWizardProps> = ({ onSubmit, isLoading,
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: 16, background: step === 0 ? "var(--color-surface)" : undefined }}>
         {step === 0 && (
           <div>
+            {pendingDraft && (
+              <div style={{ marginBottom: 12 }}>
+                <DraftBanner savedAt={pendingDraft.savedAt} onResume={handleUseDraft} onDiscard={discardDraft} />
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <Input label="活動名稱" required placeholder="例如：組內聚餐" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={30} />
 

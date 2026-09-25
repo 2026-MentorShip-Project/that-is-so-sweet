@@ -38,12 +38,21 @@ import {
 } from "./lib/api";
 import * as eventsApi from "./lib/eventsApi";
 import { ApiError } from "./lib/http";
-import { eventIdFromSharePath } from "./lib/shareRoute";
+import { AppRoute, RouteTarget, buildUrl, parseRoute } from "./lib/router";
 import { RefreshCw, AlertTriangle } from "lucide-react";
+
+const BASE_PATH = import.meta.env.BASE_URL;
+
+function currentRoute(): AppRoute {
+  return parseRoute(window.location, BASE_PATH);
+}
 
 export default function App() {
   const { isMobile } = useViewport();
-  const [currentEventId, setCurrentEventId] = useState<string | null>(null);
+  // The URL is the source of truth for which screen is shown (see lib/router.ts).
+  const [route, setRoute] = useState<AppRoute>(currentRoute);
+  const currentEventId = route.name === "event" ? route.eventId : null;
+  const homeView: "dashboard" | "create" = route.name === "create" ? "create" : "dashboard";
   const [currentHostToken, setCurrentHostToken] = useState<string | null>(null);
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [initialTab, setInitialTab] = useState<"vote" | "heatmap" | null>(null);
@@ -57,7 +66,6 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [historyList, setHistoryList] = useState<VisitedEventItem[]>([]);
   const { user, isAuthenticating, login, logout } = useFakeAuth();
-  const [homeView, setHomeView] = useState<"dashboard" | "create">("dashboard");
   // "我揪的團" comes from GET /api/events/?owner=me (per account, not per device).
   const [myEvents, setMyEvents] = useState<EventSummary[]>([]);
   const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(false);
@@ -69,9 +77,12 @@ export default function App() {
   // restores it).
   const effectiveHostToken = user ? currentHostToken : null;
 
-  // Tracks an eventId whose data was just set directly in state (e.g. right
-  // after creation), so the hashchange this triggers doesn't re-fetch it.
-  const skipNextHashLoadRef = React.useRef<string | null>(null);
+  const navigate = (target: RouteTarget, options: { replace?: boolean } = {}) => {
+    const url = buildUrl(target, BASE_PATH);
+    if (options.replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+    setRoute(currentRoute());
+  };
 
   const addToast = (type: "success" | "error" | "info", text: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -85,19 +96,12 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Helper to parse URL hash parameters e.g. #event=xxx&hostToken=yyy
-  const parseHashParams = () => {
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const eventId = params.get("event");
-    const token = params.get("hostToken");
-    const tabParam = params.get("tab");
-    const tab: "vote" | "heatmap" | null =
-      tabParam === "vote" || tabParam === "heatmap" ? tabParam : null;
-    return { eventId, token, tab };
-  };
+  // Guards against a slow response for a previous event overwriting the one
+  // the user has since navigated to.
+  const latestEventLoadRef = React.useRef<string | null>(null);
 
   const loadEvent = async (id: string, tokenParam?: string) => {
+    latestEventLoadRef.current = id;
     setIsLoading(true);
     setPageError(null);
     try {
@@ -108,15 +112,17 @@ export default function App() {
         const effectiveToken = tokenParam || storedToken || undefined;
 
         const data = await fetchEvent(id, effectiveToken);
+        if (latestEventLoadRef.current !== id) return;
         setEventData(data);
         setCurrentHostToken(effectiveToken || null);
       } else {
         const data = await eventsApi.getEvent(id);
+        if (latestEventLoadRef.current !== id) return;
         setEventData(data);
         setCurrentHostToken(data.isOwner ? eventsApi.API_OWNER_HOST_TOKEN : null);
       }
-      setCurrentEventId(id);
     } catch (err: any) {
+      if (latestEventLoadRef.current !== id) return;
       setPageError(err instanceof ApiError ? err.displayMessage : err.message || "載入活動失敗");
       setEventData(null);
     } finally {
@@ -124,46 +130,38 @@ export default function App() {
     }
   };
 
-  // On mount and on hash change
+  // Browser back/forward, plus a one-time rewrite of old "#event=" links
+  // (and the backend's shareUrl) to the canonical path.
   useEffect(() => {
-    const handleHashChange = () => {
-      const { eventId, token, tab } = parseHashParams();
-      if (eventId) {
-        setInitialTab(tab);
-        // Skip re-fetching an event whose data we just set locally
-        // (e.g. right after creating it) — the hash update below still
-        // fires this listener, and a redundant fetch that happens to
-        // fail would otherwise wipe out the data we already have.
-        if (skipNextHashLoadRef.current === eventId) {
-          skipNextHashLoadRef.current = null;
-          return;
-        }
-        loadEvent(eventId, token || undefined);
-      } else {
-        // No event in hash -> show create event form
-        setPageError(null);
-        setCurrentEventId(null);
-        setEventData(null);
-        setInitialTab(null);
-      }
-    };
-
-    // Backend share links look like <base>/events/{id}. Rewrite them to the
-    // hash route once, so later hash-only navigation (e.g. going home clears
-    // the hash) doesn't keep re-opening the event from the path.
-    const sharedEventId = eventIdFromSharePath(window.location.pathname);
-    if (sharedEventId && !parseHashParams().eventId) {
-      const basePath = window.location.pathname.replace(/events\/[^/]+\/?$/, "");
-      window.history.replaceState(null, "", `${basePath}#event=${encodeURIComponent(sharedEventId)}`);
+    const initial = currentRoute();
+    const canonical = buildUrl(initial, BASE_PATH);
+    if (window.location.hash || window.location.pathname + window.location.search !== canonical) {
+      window.history.replaceState(null, "", canonical);
     }
-
-    handleHashChange();
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    const onPopState = () => setRoute(currentRoute());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  // Load the event whenever the route points at a different one. Toggling
+  // /edit or the tab on the same event doesn't refetch.
+  const routeHostToken = route.name === "event" ? route.hostToken : null;
+  useEffect(() => {
+    setPageError(null);
+    if (route.name !== "event") {
+      latestEventLoadRef.current = null;
+      setEventData(null);
+      setCurrentHostToken(null);
+      setInitialTab(null);
+      return;
+    }
+    setInitialTab(route.tab);
+    setEventData((prev) => (prev?.id === route.eventId ? prev : null));
+    loadEvent(route.eventId, route.hostToken || undefined);
+  }, [currentEventId, routeHostToken]);
+
   // Refresh the visited-events list whenever the "我的聚會" modal opens, or
-  // whenever we land on the logged-in host home (no event in the hash) —
+  // whenever we land on the logged-in host home (no event in the URL) —
   // HostDashboard/HostHome need this list without the user opening the modal.
   useEffect(() => {
     if (isHistoryOpen || (!currentEventId && user)) {
@@ -198,11 +196,9 @@ export default function App() {
     try {
       const result = await eventsApi.createEvent(input);
       if (input.hostName) saveUserNickname(input.hostName);
-      // GET /api/events/{id} isn't wired up yet, so instead of opening the
-      // event page, show the share link and go back to "我揪的團" (which
-      // refetches and now includes the new event).
+      // Open the new event's page, with the share link on top.
       setCreatedEvent({ ...result, title: input.title });
-      setHomeView("dashboard");
+      navigate({ name: "event", eventId: result.id });
       addToast("success", "活動成功建立！專屬連結已產生");
     } catch (err) {
       addToast("error", err instanceof ApiError ? err.displayMessage : "建立活動失敗，請重試");
@@ -309,15 +305,13 @@ export default function App() {
   };
 
   const handleGoHome = (view: "dashboard" | "create" = "dashboard") => {
-    window.location.hash = "";
-    setPageError(null);
-    setCurrentEventId(null);
-    setEventData(null);
-    setHomeView(view);
+    navigate(view === "create" ? { name: "create" } : { name: "home" });
   };
 
+  const handleSelectEvent = (id: string) => navigate({ name: "event", eventId: id });
+
   const handleLoadDemo = (id: string = "demo-gathering", hostToken?: string) => {
-    window.location.hash = hostToken ? `event=${id}&hostToken=${hostToken}` : `event=${id}`;
+    navigate({ name: "event", eventId: id, hostToken });
   };
 
   if (isMobile) {
@@ -349,9 +343,7 @@ export default function App() {
         onRetryMyEvents={loadMyEvents}
         createdEvent={createdEvent}
         onCloseCreatedEvent={() => setCreatedEvent(null)}
-        onSelectEvent={(id) => {
-          window.location.hash = `event=${id}`;
-        }}
+        onSelectEvent={handleSelectEvent}
         onLoadDemo={handleLoadDemo}
         onCopySuccess={() => addToast("success", "已成功複製到剪貼簿！")}
         toasts={toasts}
@@ -360,7 +352,7 @@ export default function App() {
         onLogin={login}
         onLogout={logout}
         homeView={homeView}
-        onOpenCreate={() => setHomeView("create")}
+        onOpenCreate={() => navigate({ name: "create" })}
       />
     );
   }
@@ -416,10 +408,8 @@ export default function App() {
               isLoadingEvents={isLoadingMyEvents}
               eventsError={myEventsError}
               onRetryEvents={loadMyEvents}
-              onCreateEvent={() => setHomeView("create")}
-              onSelectEvent={(id) => {
-                window.location.hash = `event=${id}`;
-              }}
+              onCreateEvent={() => navigate({ name: "create" })}
+              onSelectEvent={handleSelectEvent}
               onLoadDemo={handleLoadDemo}
             />
           )

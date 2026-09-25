@@ -2,6 +2,7 @@ import { EventData, AiSelectedRestaurant } from "../types";
 import { formatChineseWeekday } from "./calendar";
 import { formatSlotTime } from "./slots";
 import { formatDeadline, isVotingOpen } from "./eventStatus";
+import { buildUrl } from "./router";
 
 // What ShareModal should show depends on where the event actually is in its
 // lifecycle — inviting people to vote on an event that's already finalized
@@ -40,12 +41,11 @@ export function buildFinalizedBroadcast(
 ${isDateOnly ? "" : `⏰ 時間：${formatSlotTime(slot.time)}\n`}${event.finalNote ? `💬 備註：${event.finalNote}\n` : ""}${restaurantBlock}👥 出席 (${attending.length}人)：${attending.join("、") || "歡迎大家參與！"}`;
 }
 
-// One link for the whole lifecycle — no "&tab=vote" — so it keeps working
+// One link for the whole lifecycle — no "?tab=vote" — so it keeps working
 // (and showing the right screen) whether voting is open, closed, or finalized.
-// import.meta.env.BASE_URL mirrors vite.config.ts's `base` (e.g. "/That-is-so-sweet/"
-// on GitHub Pages, "/" in dev) — without it the link 404s on Pages.
+// import.meta.env.BASE_URL mirrors vite.config.ts's `base` (e.g. "/That-is-so-sweet/").
 export function getEventShareUrl(event: Pick<EventData, "id">, appOrigin: string): string {
-  return `${appOrigin}${import.meta.env.BASE_URL}#event=${event.id}`;
+  return `${appOrigin}${buildUrl({ name: "event", eventId: event.id }, import.meta.env.BASE_URL)}`;
 }
 
 export function getShareContent(event: EventData, shareUrl: string): ShareContent {

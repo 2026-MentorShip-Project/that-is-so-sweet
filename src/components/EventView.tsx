@@ -58,7 +58,7 @@ export const EventView: React.FC<EventViewProps> = ({
   };
 
   // Re-apply the requested view whenever the URL asks for one — covers not just the
-  // first mount but also navigating here via a hash-only change (e.g. pasting the
+  // first mount but also navigating here via a URL change (e.g. pasting the
   // participant link while the app is already open in the same tab).
   useEffect(() => {
     if (initialTab === "vote") setView("identify_vote");

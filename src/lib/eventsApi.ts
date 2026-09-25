@@ -92,6 +92,37 @@ export async function updateEvent<T extends EventData>(original: T, input: Edita
   return fromApiEvent(data);
 }
 
+// --- Host lifecycle actions (模組06). Each returns the full updated event. --- //
+
+function eventActionPath(eventId: string, action: "finalize" | "reopen" | "cancel"): string {
+  return `/api/events/${encodeURIComponent(eventId)}/${action}/`;
+}
+
+export async function finalizeEvent(eventId: string, input: { finalSlotId: string; finalNote?: string }): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "finalize"), {
+    method: "POST",
+    body: JSON.stringify({ finalSlotId: input.finalSlotId, finalNote: input.finalNote?.trim() || null }),
+  });
+  return fromApiEvent(data);
+}
+
+// Only for finalized events; the backend answers 409 EVENT_NOT_FINALIZED
+// otherwise. The deadline must be in the future.
+export async function reopenEvent(eventId: string, responseDeadline: string): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "reopen"), {
+    method: "POST",
+    body: JSON.stringify({ responseDeadline }),
+  });
+  return fromApiEvent(data);
+}
+
+// Works on active or finalized events. The backend soft-deletes every vote
+// and clears the final slot, so the returned event has no responses.
+export async function cancelEvent(eventId: string): Promise<EventData & { isOwner: boolean }> {
+  const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "cancel"), { method: "POST" });
+  return fromApiEvent(data);
+}
+
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API
 // wants "HH:MM:SS" or null.
 export function toCreateEventRequest(input: CreateEventInput): CreateEventRequest {

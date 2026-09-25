@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, updateEvent, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
+import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
 import { ApiError } from "./http";
 import { CreateEventInput } from "../types";
 
@@ -334,5 +334,85 @@ describe("updateEvent", () => {
     const forbidden = await updateEvent(original, { ...unchanged, title: "新標題" }).catch((e) => e);
     expect(forbidden.status).toBe(403);
     expect(forbidden.displayMessage).toBe("僅活動擁有者可編輯此活動");
+  });
+});
+
+describe("finalizeEvent", () => {
+  it("POSTs the chosen slot and note, and returns the finalized event", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { ...apiEvent, status: "finalized", displayStatus: "finalized_upcoming", finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！" })
+    );
+
+    const event = await finalizeEvent("irt9DIwH", { finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！" });
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/finalize/");
+    expect(init.method).toBe("POST");
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
+    expect(JSON.parse(init.body as string)).toEqual({ finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！" });
+    expect(event).toMatchObject({ status: "finalized", finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！", isOwner: true });
+  });
+
+  it("sends null when the host leaves no note", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "finalized", finalSlotId: "slot-a" }));
+
+    await finalizeEvent("irt9DIwH", { finalSlotId: "slot-a", finalNote: "  " });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({ finalSlotId: "slot-a", finalNote: null });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(409, { message: "活動已取消，無法定案", code: "EVENT_ALREADY_CANCELLED" }));
+
+    const err = await finalizeEvent("irt9DIwH", { finalSlotId: "slot-a" }).catch((e) => e);
+
+    expect(err.status).toBe(409);
+    expect(err.displayMessage).toBe("活動已取消，無法定案");
+  });
+});
+
+describe("reopenEvent", () => {
+  it("POSTs the new deadline and returns the event back in voting", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "active", displayStatus: "voting_open", responseDeadline: "2026-10-05T15:59:00+00:00" }));
+
+    const event = await reopenEvent("irt9DIwH", "2026-10-05T15:59:00.000Z");
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/reopen/");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ responseDeadline: "2026-10-05T15:59:00.000Z" });
+    expect(event).toMatchObject({ status: "active", finalSlotId: undefined, responseDeadline: "2026-10-05T15:59:00+00:00" });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(409, { message: "活動目前不是已定案狀態，無法重新開放投票", code: "EVENT_NOT_FINALIZED" }));
+
+    const err = await reopenEvent("irt9DIwH", "2026-10-05T15:59:00.000Z").catch((e) => e);
+
+    expect(err.code).toBe("EVENT_NOT_FINALIZED");
+    expect(err.displayMessage).toBe("活動目前不是已定案狀態，無法重新開放投票");
+  });
+});
+
+describe("cancelEvent", () => {
+  it("POSTs with no body and returns the cancelled event with its votes cleared", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "cancelled", displayStatus: "cancelled", responses: [], finalSlotId: null }));
+
+    const event = await cancelEvent("irt9DIwH");
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/cancel/");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
+    expect(event).toMatchObject({ status: "cancelled", responses: [], finalSlotId: undefined });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(403, { message: "僅活動擁有者可取消活動", code: "FORBIDDEN" }));
+
+    const err = await cancelEvent("irt9DIwH").catch((e) => e);
+
+    expect(err.status).toBe(403);
+    expect(err.displayMessage).toBe("僅活動擁有者可取消活動");
   });
 });

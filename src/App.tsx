@@ -43,6 +43,12 @@ import { RefreshCw, AlertTriangle } from "lucide-react";
 
 const BASE_PATH = import.meta.env.BASE_URL;
 
+// demo-* events only exist in the localStorage store; everything else is the backend's.
+const isDemoEvent = (eventId: string) => eventId.startsWith("demo-");
+
+const errorMessage = (err: any, fallback: string): string =>
+  err instanceof ApiError ? err.displayMessage : err?.message || fallback;
+
 function currentRoute(): AppRoute {
   return parseRoute(window.location, BASE_PATH);
 }
@@ -105,7 +111,7 @@ export default function App() {
     setIsLoading(true);
     setPageError(null);
     try {
-      if (id.startsWith("demo-")) {
+      if (isDemoEvent(id)) {
         // Demo events only exist in the localStorage store.
         // Priority: tokenParam -> LocalStorage token
         const storedToken = getHostToken(id);
@@ -226,29 +232,40 @@ export default function App() {
     if (!currentEventId || !currentHostToken) return;
     setIsLoading(true);
     try {
-      const updated = await finalizeEvent(currentEventId, {
-        hostToken: currentHostToken,
-        finalSlotId,
-        finalNote,
-      });
+      const updated = isDemoEvent(currentEventId)
+        ? await finalizeEvent(currentEventId, { hostToken: currentHostToken, finalSlotId, finalNote })
+        : await eventsApi.finalizeEvent(currentEventId, { finalSlotId, finalNote });
       setEventData(updated);
       addToast("success", "聚會時間已拍板定案！結果已發布");
     } catch (err: any) {
-      addToast("error", err.message || "拍板定案失敗");
+      addToast("error", errorMessage(err, "拍板定案失敗"));
     } finally {
       setIsLoading(false);
     }
   };
 
+  // "重新開放投票" appears in two states: a finalized event (backend reopen)
+  // and an active event whose deadline has passed (backend reopen rejects
+  // that with 409 EVENT_NOT_FINALIZED, so the deadline is extended via PATCH).
   const handleReopen = async (newDeadline?: string) => {
-    if (!currentEventId || !currentHostToken) return;
+    if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = await reopenEvent(currentEventId, currentHostToken, newDeadline);
+      let updated: EventData;
+      if (isDemoEvent(currentEventId)) {
+        updated = await reopenEvent(currentEventId, currentHostToken, newDeadline);
+      } else if (!newDeadline) {
+        throw new Error("請設定新的投票截止時間");
+      } else if (eventData.status === "finalized") {
+        updated = await eventsApi.reopenEvent(currentEventId, newDeadline);
+      } else {
+        const { title, description, location, hostName, hostEmail } = eventData;
+        updated = await eventsApi.updateEvent(eventData, { title, description, location, hostName, hostEmail, responseDeadline: newDeadline });
+      }
       setEventData(updated);
       addToast("info", "活動已重新開放投票統計");
     } catch (err: any) {
-      addToast("error", err.message || "重新開放失敗");
+      addToast("error", errorMessage(err, "重新開放失敗"));
     } finally {
       setIsLoading(false);
     }
@@ -258,11 +275,13 @@ export default function App() {
     if (!currentEventId || !currentHostToken) return;
     setIsLoading(true);
     try {
-      const updated = await cancelEvent(currentEventId, currentHostToken);
+      const updated = isDemoEvent(currentEventId)
+        ? await cancelEvent(currentEventId, currentHostToken)
+        : await eventsApi.cancelEvent(currentEventId);
       setEventData(updated);
       addToast("info", "活動已取消");
     } catch (err: any) {
-      addToast("error", err.message || "取消活動失敗");
+      addToast("error", errorMessage(err, "取消活動失敗"));
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +291,7 @@ export default function App() {
     if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = currentEventId.startsWith("demo-")
+      const updated = isDemoEvent(currentEventId)
         ? await updateEvent(currentEventId, { hostToken: currentHostToken, ...input })
         : await eventsApi.updateEvent(eventData, input);
       setEventData(updated);

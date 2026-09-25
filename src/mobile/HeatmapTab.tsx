@@ -19,6 +19,9 @@ interface HeatmapTabProps {
   onReopen?: (newDeadline?: string) => Promise<void>;
   onCancelEvent?: () => Promise<void>;
   onUpdateEvent?: (input: Omit<UpdateEventInput, "hostToken">) => Promise<void>;
+  /** Edit dialog open state — driven by the /events/{id}/edit URL. */
+  isEditing?: boolean;
+  onEditingChange?: (open: boolean) => void;
   isLoading?: boolean;
   /** Desktop has room to show the calendar and its selected-date detail side by side. */
   layout?: "mobile" | "desktop";
@@ -196,6 +199,8 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   onReopen,
   onCancelEvent,
   onUpdateEvent,
+  isEditing = false,
+  onEditingChange,
   isLoading,
   layout = "mobile",
 }) => {
@@ -223,7 +228,8 @@ export const HeatmapTab: React.FC<HeatmapTabProps> = ({
   const [confirmingFinalize, setConfirmingFinalize] = useState(false);
   const [reopening, setReopening] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const editing = isEditing && isHost;
+  const setEditing = (open: boolean) => onEditingChange?.(open);
   const top = showAllTop ? qualifying : qualifying.slice(0, 3);
   const moreCount = qualifying.length - 3;
   const grouped = stats.reduce((acc, s) => {

@@ -310,6 +310,24 @@ export default function App() {
 
   const handleSelectEvent = (id: string) => navigate({ name: "event", eventId: id });
 
+  // /events/{id}/edit opens the edit dialog. Opening pushes the /edit entry,
+  // so closing it steps back; a page loaded directly at /edit has nothing of
+  // ours to go back to, so closing replaces the URL instead.
+  const isEditing = route.name === "event" && route.edit;
+  const editOpenedInAppRef = React.useRef(false);
+  const handleEditingChange = (open: boolean) => {
+    if (route.name !== "event" || open === route.edit) return;
+    if (open) {
+      editOpenedInAppRef.current = true;
+      navigate({ name: "event", eventId: route.eventId, hostToken: route.hostToken, edit: true });
+    } else if (editOpenedInAppRef.current) {
+      editOpenedInAppRef.current = false;
+      window.history.back();
+    } else {
+      navigate({ name: "event", eventId: route.eventId, hostToken: route.hostToken }, { replace: true });
+    }
+  };
+
   const handleLoadDemo = (id: string = "demo-gathering", hostToken?: string) => {
     navigate({ name: "event", eventId: id, hostToken });
   };
@@ -330,6 +348,8 @@ export default function App() {
         onReopen={handleReopen}
         onCancelEvent={handleCancelEvent}
         onUpdateEvent={handleUpdateEvent}
+        isEditing={isEditing}
+        onEditingChange={handleEditingChange}
         onSubmitComment={handleSubmitComment}
         onSelectAiRestaurant={handleSelectAiRestaurant}
         isShareModalOpen={isShareModalOpen}
@@ -425,6 +445,8 @@ export default function App() {
             onReopen={handleReopen}
             onCancelEvent={handleCancelEvent}
             onUpdateEvent={handleUpdateEvent}
+            isEditing={isEditing}
+            onEditingChange={handleEditingChange}
             onSubmitComment={handleSubmitComment}
         onSelectAiRestaurant={handleSelectAiRestaurant}
             onCopySuccess={() => addToast("success", "已成功複製到剪貼簿！")}

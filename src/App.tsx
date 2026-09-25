@@ -244,15 +244,28 @@ export default function App() {
     }
   };
 
+  // "重新開放投票" appears in two states: a finalized event (backend reopen)
+  // and an active event whose deadline has passed (backend reopen rejects
+  // that with 409 EVENT_NOT_FINALIZED, so the deadline is extended via PATCH).
   const handleReopen = async (newDeadline?: string) => {
-    if (!currentEventId || !currentHostToken) return;
+    if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = await reopenEvent(currentEventId, currentHostToken, newDeadline);
+      let updated: EventData;
+      if (isDemoEvent(currentEventId)) {
+        updated = await reopenEvent(currentEventId, currentHostToken, newDeadline);
+      } else if (!newDeadline) {
+        throw new Error("請設定新的投票截止時間");
+      } else if (eventData.status === "finalized") {
+        updated = await eventsApi.reopenEvent(currentEventId, newDeadline);
+      } else {
+        const { title, description, location, hostName, hostEmail } = eventData;
+        updated = await eventsApi.updateEvent(eventData, { title, description, location, hostName, hostEmail, responseDeadline: newDeadline });
+      }
       setEventData(updated);
       addToast("info", "活動已重新開放投票統計");
     } catch (err: any) {
-      addToast("error", err.message || "重新開放失敗");
+      addToast("error", errorMessage(err, "重新開放失敗"));
     } finally {
       setIsLoading(false);
     }

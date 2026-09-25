@@ -216,8 +216,8 @@ export default function App() {
     if (!currentEventId) return;
     setIsLoading(true);
     try {
-      const updated = await submitResponse(currentEventId, input);
-      setEventData(updated);
+      const responses = await submitResponse(currentEventId, input);
+      setEventData((prev) => prev && { ...prev, responses });
       addToast("success", "您的時間已成功記錄與更新！");
     } catch (err: any) {
       addToast("error", err.message || "送出時間失敗");

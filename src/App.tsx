@@ -273,14 +273,16 @@ export default function App() {
   };
 
   const handleUpdateEvent = async (input: Omit<UpdateEventInput, "hostToken">) => {
-    if (!currentEventId || !currentHostToken) return;
+    if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = await updateEvent(currentEventId, { hostToken: currentHostToken, ...input });
+      const updated = currentEventId.startsWith("demo-")
+        ? await updateEvent(currentEventId, { hostToken: currentHostToken, ...input })
+        : await eventsApi.updateEvent(eventData, input);
       setEventData(updated);
       addToast("success", "活動資訊已更新");
     } catch (err: any) {
-      addToast("error", err.message || "更新活動資訊失敗");
+      addToast("error", err instanceof ApiError ? err.displayMessage : err.message || "更新活動資訊失敗");
     } finally {
       setIsLoading(false);
     }

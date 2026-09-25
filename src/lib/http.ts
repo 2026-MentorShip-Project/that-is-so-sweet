@@ -47,11 +47,20 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+export interface ApiFetchOptions extends RequestInit {
+  // For public endpoints (e.g. GET /api/events/{id}/) that only use the token
+  // to decide isOwner: an expired token makes DRF reject the whole request
+  // with 401, so retry anonymously instead of locking participants out.
+  optionalAuth?: boolean;
+  skipAuth?: boolean;
+}
+
+export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+  const { optionalAuth, skipAuth, ...init } = options;
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (init.body !== undefined) headers.set("Content-Type", "application/json");
-  const token = getAccessToken();
+  const token = skipAuth ? null : getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   let res: Response;
@@ -64,6 +73,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const body = res.status === 204 ? null : await res.json().catch(() => null);
 
   if (!res.ok) {
+    if (res.status === 401 && token && optionalAuth) {
+      return apiFetch<T>(path, { ...init, skipAuth: true });
+    }
     if (res.status === 401 && !token) {
       throw new ApiError(401, "尚未設定 access token，請先登入", "UNAUTHORIZED");
     }

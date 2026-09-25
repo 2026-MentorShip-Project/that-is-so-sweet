@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect } from "react";
 import { Zap, RotateCw, ChevronUp, ChevronDown, List, CalendarDays, AlertTriangle, Info, X } from "lucide-react";
 import { EventData, AvailabilityStatus, SubmitResponseInput } from "../../types";
 import { formatChineseWeekday } from "../../share/calendar";
+import { verifyResponse } from "../../share/api";
 import { isVotingOpen, formatDeadline, getLifecycleStatus } from "../../share/eventStatus";
 import { formatSlotTime } from "../../share/slots";
 import { Button, Input } from "../../design-system/components";
@@ -94,6 +95,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const [mode, setMode] = useState<VoteMode>(initialMode === "create" || initialMode === "login" ? initialMode : "readonly");
   const [comment, setComment] = useState("");
   const [password, setPassword] = useState("");
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [availability, setAvailability] = useState<Record<string, AvailabilityStatus>>({});
   const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -120,6 +122,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
 
   const startCreate = () => {
     setEditingParticipantId(null);
+    setAccessToken(null);
     setNickname("");
     setEmail("");
     setPassword("");
@@ -144,25 +147,27 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
     setLoginError("");
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const cleanLoginNickname = loginNickname.trim();
     if (!cleanLoginNickname || !loginPassword.trim()) {
       setLoginError("請輸入暱稱與手機末三碼");
       return;
     }
-    const matched = event.responses.find((r) => r.nickname.toLowerCase() === cleanLoginNickname.toLowerCase());
-    if (!matched || matched.password !== loginPassword.trim()) {
+    try {
+      const verified = await verifyResponse(event.id, cleanLoginNickname, loginPassword.trim());
+      const matched = event.responses.find((r) => r.nickname.toLowerCase() === cleanLoginNickname.toLowerCase());
+      setEditingParticipantId(verified.responseId);
+      setAccessToken(verified.accessToken);
+      setNickname(matched?.nickname || cleanLoginNickname);
+      setEmail(matched?.email || "");
+      setPassword(loginPassword.trim());
+      setComment(matched?.comment || "");
+      setAvailability(matched?.availability || defaultAvailability());
+      setLoginError("");
+      setMode("edit");
+    } catch {
       setLoginError("暱稱或手機末三碼不正確");
-      return;
     }
-    setEditingParticipantId(matched.id);
-    setNickname(matched.nickname);
-    setEmail(matched.email || "");
-    setPassword(matched.password || "");
-    setComment(matched.comment || "");
-    setAvailability(matched.availability || {});
-    setLoginError("");
-    setMode("edit");
   };
 
   useLayoutEffect(() => {
@@ -227,6 +232,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
     try {
       await onSubmit({
         participantId: editingParticipantId || undefined,
+        accessToken: accessToken || undefined,
         nickname: nickname.trim(),
         email: email.trim(),
         password: password.trim() || undefined,

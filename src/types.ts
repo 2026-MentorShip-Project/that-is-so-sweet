@@ -77,6 +77,7 @@ export interface CreateEventInput {
 
 export interface SubmitResponseInput {
   participantId?: string; // If re-editing
+  accessToken?: string; // Issued by response identity verification
   nickname: string;
   email?: string;
   password?: string;

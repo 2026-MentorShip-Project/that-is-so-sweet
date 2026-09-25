@@ -38,6 +38,7 @@ import {
 } from "./lib/api";
 import * as eventsApi from "./lib/eventsApi";
 import { ApiError } from "./lib/http";
+import { eventIdFromSharePath } from "./lib/shareRoute";
 import { RefreshCw, AlertTriangle } from "lucide-react";
 
 export default function App() {
@@ -146,6 +147,15 @@ export default function App() {
         setInitialTab(null);
       }
     };
+
+    // Backend share links look like <base>/events/{id}. Rewrite them to the
+    // hash route once, so later hash-only navigation (e.g. going home clears
+    // the hash) doesn't keep re-opening the event from the path.
+    const sharedEventId = eventIdFromSharePath(window.location.pathname);
+    if (sharedEventId && !parseHashParams().eventId) {
+      const basePath = window.location.pathname.replace(/events\/[^/]+\/?$/, "");
+      window.history.replaceState(null, "", `${basePath}#event=${encodeURIComponent(sharedEventId)}`);
+    }
 
     handleHashChange();
     window.addEventListener("hashchange", handleHashChange);

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventDraftFields, clearEventDraft, formatDraftSavedAt, getEventDraft, saveEventDraft } from "./eventDraft";
+import { DRAFT_RESTORED, EventDraftFields, clearEventDraft, draftActionOnLeave, formatDraftSavedAt, getEventDraft, saveEventDraft } from "./eventDraft";
 
 const fields: EventDraftFields = {
   title: "週末聚餐",
@@ -88,5 +88,35 @@ describe("formatDraftSavedAt", () => {
 
   it("shows month/day and time", () => {
     expect(formatDraftSavedAt("2026-09-25T08:30:00.000Z")).toMatch(/9\/25/);
+  });
+});
+
+describe("draftActionOnLeave (leaving the create page or closing the browser)", () => {
+  const defaults = JSON.stringify({ title: "" });
+  const edited = JSON.stringify({ title: "週末聚餐" });
+  const base = { hasPendingDraft: false, submitted: false, baseline: defaults, snapshot: edited };
+
+  it("saves a form the host has filled in", () => {
+    expect(draftActionOnLeave(base)).toBe("save");
+  });
+
+  it("does not save a form left untouched", () => {
+    expect(draftActionOnLeave({ ...base, snapshot: defaults })).toBe("clear");
+  });
+
+  it("does not save after the event was created", () => {
+    expect(draftActionOnLeave({ ...base, submitted: true })).toBe("skip");
+  });
+
+  it("keeps the old draft if the host left before choosing resume or discard", () => {
+    expect(draftActionOnLeave({ ...base, hasPendingDraft: true })).toBe("skip");
+  });
+
+  it("does nothing before the form has settled", () => {
+    expect(draftActionOnLeave({ ...base, baseline: null })).toBe("skip");
+  });
+
+  it("always saves a resumed draft, even if unchanged", () => {
+    expect(draftActionOnLeave({ ...base, baseline: DRAFT_RESTORED, snapshot: edited })).toBe("save");
   });
 });

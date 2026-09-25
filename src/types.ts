@@ -16,7 +16,7 @@ export interface ParticipantResponse {
   password?: string; // 選填，明文防呆用途（非加密驗證），一旦設定不可修改
   availability: Record<string, AvailabilityStatus>; // slotId -> status
   comment?: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
 export interface EventComment {

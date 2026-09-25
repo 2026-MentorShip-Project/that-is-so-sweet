@@ -26,6 +26,9 @@ interface MobileAppProps {
   onReopen: (newDeadline?: string) => Promise<void>;
   onCancelEvent: () => Promise<void>;
   onUpdateEvent?: (input: Omit<UpdateEventInput, "hostToken">) => Promise<void>;
+  /** Edit dialog open state — driven by the /events/{id}/edit URL. */
+  isEditing?: boolean;
+  onEditingChange?: (open: boolean) => void;
   onSubmitComment: (input: SubmitCommentInput) => Promise<void>;
   onSelectAiRestaurant: (restaurant: AiSelectedRestaurant) => void;
   isShareModalOpen: boolean;
@@ -65,6 +68,8 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   onReopen,
   onCancelEvent,
   onUpdateEvent,
+  isEditing,
+  onEditingChange,
   onSubmitComment,
   onSelectAiRestaurant,
   isShareModalOpen,
@@ -158,6 +163,8 @@ export const MobileApp: React.FC<MobileAppProps> = ({
             onReopen={onReopen}
             onCancelEvent={onCancelEvent}
             onUpdateEvent={onUpdateEvent}
+            isEditing={isEditing}
+            onEditingChange={onEditingChange}
             onSubmitComment={onSubmitComment}
             onSelectAiRestaurant={onSelectAiRestaurant}
             onNewEvent={onGoHome}

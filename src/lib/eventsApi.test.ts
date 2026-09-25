@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, API_OWNER_HOST_TOKEN } from "./eventsApi";
+import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
 import { ApiError } from "./http";
 import { CreateEventInput } from "../types";
 
@@ -260,5 +260,159 @@ describe("getEvent", () => {
     const expired = await getEvent("WpHm5SPO").catch((e) => e);
     expect(expired.status).toBe(410);
     expect(expired.code).toBe("LINK_EXPIRED");
+  });
+});
+
+describe("updateEvent", () => {
+  const original = fromApiEvent(apiEvent as never);
+  const unchanged = {
+    title: "週末聚餐揪團",
+    description: "大家投票選個時間吃飯",
+    location: { text: "台北市信義區" },
+    hostName: "小明",
+    hostEmail: "host@example.com",
+    responseDeadline: "2026-09-20T15:59:00.000Z", // same instant as original
+  };
+
+  it("PATCHes only the fields the host changed and returns the updated event", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, title: "改過的標題" }));
+
+    const updated = await updateEvent(original, { ...unchanged, title: "改過的標題" });
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/");
+    expect(init.method).toBe("PATCH");
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
+    // The past deadline is left out — resending it would fail DEADLINE_IN_PAST.
+    expect(JSON.parse(init.body as string)).toEqual({ title: "改過的標題" });
+    expect(updated.title).toBe("改過的標題");
+    expect(updated.isOwner).toBe(true);
+  });
+
+  it("sends null when the host clears the description or location", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, description: null, location: null }));
+
+    await updateEvent(original, { ...unchanged, description: "", location: undefined });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({ description: null, location: null });
+  });
+
+  it("sends a changed nickname, email and deadline", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, apiEvent));
+
+    await updateEvent(original, { ...unchanged, hostName: "阿傑", hostEmail: "new@example.com", responseDeadline: "2026-10-01T15:59:00.000Z" });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({
+      hostNickname: "阿傑",
+      hostEmail: "new@example.com",
+      responseDeadline: "2026-10-01T15:59:00.000Z",
+    });
+  });
+
+  it("leaves hostEmail out when cleared, since the backend rejects blank or null emails", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, apiEvent));
+
+    await updateEvent(original, { ...unchanged, title: "新標題", hostEmail: "" });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({ title: "新標題" });
+  });
+
+  it("skips the request when nothing changed", async () => {
+    const result = await updateEvent(original, unchanged);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual(original);
+  });
+
+  it("surfaces why the backend refused the edit", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(409, { message: "活動已定案或取消，無法編輯", code: "EVENT_NOT_ACTIVE" }));
+    const notActive = await updateEvent(original, { ...unchanged, title: "新標題" }).catch((e) => e);
+    expect(notActive.status).toBe(409);
+    expect(notActive.displayMessage).toBe("活動已定案或取消，無法編輯");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, { message: "僅活動擁有者可編輯此活動", code: "FORBIDDEN" }));
+    const forbidden = await updateEvent(original, { ...unchanged, title: "新標題" }).catch((e) => e);
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.displayMessage).toBe("僅活動擁有者可編輯此活動");
+  });
+});
+
+describe("finalizeEvent", () => {
+  it("POSTs the chosen slot and note, and returns the finalized event", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { ...apiEvent, status: "finalized", displayStatus: "finalized_upcoming", finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！" })
+    );
+
+    const event = await finalizeEvent("irt9DIwH", { finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！" });
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/finalize/");
+    expect(init.method).toBe("POST");
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
+    expect(JSON.parse(init.body as string)).toEqual({ finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！" });
+    expect(event).toMatchObject({ status: "finalized", finalSlotId: "slot-a", finalNote: "地點入口見，記得帶睡袋！", isOwner: true });
+  });
+
+  it("sends null when the host leaves no note", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "finalized", finalSlotId: "slot-a" }));
+
+    await finalizeEvent("irt9DIwH", { finalSlotId: "slot-a", finalNote: "  " });
+
+    expect(JSON.parse(lastRequest().init.body as string)).toEqual({ finalSlotId: "slot-a", finalNote: null });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(409, { message: "活動已取消，無法定案", code: "EVENT_ALREADY_CANCELLED" }));
+
+    const err = await finalizeEvent("irt9DIwH", { finalSlotId: "slot-a" }).catch((e) => e);
+
+    expect(err.status).toBe(409);
+    expect(err.displayMessage).toBe("活動已取消，無法定案");
+  });
+});
+
+describe("reopenEvent", () => {
+  it("POSTs the new deadline and returns the event back in voting", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "active", displayStatus: "voting_open", responseDeadline: "2026-10-05T15:59:00+00:00" }));
+
+    const event = await reopenEvent("irt9DIwH", "2026-10-05T15:59:00.000Z");
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/reopen/");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ responseDeadline: "2026-10-05T15:59:00.000Z" });
+    expect(event).toMatchObject({ status: "active", finalSlotId: undefined, responseDeadline: "2026-10-05T15:59:00+00:00" });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(409, { message: "活動目前不是已定案狀態，無法重新開放投票", code: "EVENT_NOT_FINALIZED" }));
+
+    const err = await reopenEvent("irt9DIwH", "2026-10-05T15:59:00.000Z").catch((e) => e);
+
+    expect(err.code).toBe("EVENT_NOT_FINALIZED");
+    expect(err.displayMessage).toBe("活動目前不是已定案狀態，無法重新開放投票");
+  });
+});
+
+describe("cancelEvent", () => {
+  it("POSTs with no body and returns the cancelled event with its votes cleared", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, status: "cancelled", displayStatus: "cancelled", responses: [], finalSlotId: null }));
+
+    const event = await cancelEvent("irt9DIwH");
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/cancel/");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
+    expect(event).toMatchObject({ status: "cancelled", responses: [], finalSlotId: undefined });
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(403, { message: "僅活動擁有者可取消活動", code: "FORBIDDEN" }));
+
+    const err = await cancelEvent("irt9DIwH").catch((e) => e);
+
+    expect(err.status).toBe(403);
+    expect(err.displayMessage).toBe("僅活動擁有者可取消活動");
   });
 });

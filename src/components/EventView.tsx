@@ -20,6 +20,9 @@ interface EventViewProps {
   onReopen: (newDeadline?: string) => Promise<void>;
   onCancelEvent: () => Promise<void>;
   onUpdateEvent?: (input: Omit<UpdateEventInput, "hostToken">) => Promise<void>;
+  /** Edit dialog open state — driven by the /events/{id}/edit URL. */
+  isEditing?: boolean;
+  onEditingChange?: (open: boolean) => void;
   onSubmitComment: (input: SubmitCommentInput) => Promise<void>;
   onSelectAiRestaurant: (restaurant: AiSelectedRestaurant) => void;
   onCopySuccess: () => void;
@@ -35,6 +38,8 @@ export const EventView: React.FC<EventViewProps> = ({
   onReopen,
   onCancelEvent,
   onUpdateEvent,
+  isEditing,
+  onEditingChange,
   onSubmitComment,
   onSelectAiRestaurant,
   onCopySuccess,
@@ -65,6 +70,11 @@ export const EventView: React.FC<EventViewProps> = ({
     else if (initialTab === "heatmap") setView("heatmap");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id, initialTab]);
+
+  // The edit dialog lives in the heatmap (host) view, so /edit switches to it.
+  useEffect(() => {
+    if (isEditing) setView("heatmap");
+  }, [isEditing]);
 
   const lifecycle = getLifecycleStatus(event);
 
@@ -139,6 +149,8 @@ export const EventView: React.FC<EventViewProps> = ({
                   onReopen={onReopen}
                   onCancelEvent={onCancelEvent}
                   onUpdateEvent={onUpdateEvent}
+                  isEditing={isEditing}
+                  onEditingChange={onEditingChange}
                   isLoading={isLoading}
                   layout="desktop"
                 />

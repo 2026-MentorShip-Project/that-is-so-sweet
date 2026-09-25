@@ -16,6 +16,24 @@ const LOCAL_USER_NICKNAME_KEY = "gathertime_user_nickname";
 const LOCAL_USER_EMAIL_KEY = "gathertime_user_email";
 const LOCAL_MY_EVENTS_KEY = "gathertime_my_events"; // Array of event IDs visited or created
 const LOCAL_RECENT_SLOT_PRESETS_KEY = "gathertime_recent_slot_presets"; // Array of { start, label } from the last created event
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+export interface VerifyResponseResult {
+  responseId: string;
+  accessToken: string;
+}
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init.headers },
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(body?.detail || body?.message || "API 請求失敗");
+  }
+  return body as T;
+}
 
 // Everything below reads/writes this browser's localStorage only (see
 // ../lib/localEventStore.ts) — there is no server, so nothing here syncs across
@@ -36,11 +54,30 @@ export async function createEvent(input: CreateEventInput): Promise<{ event: Eve
 }
 
 export async function submitResponse(eventId: string, input: SubmitResponseInput): Promise<EventData> {
-  const data = store.submitResponse(eventId, input);
+  const { participantId, accessToken, ...body } = input;
+  const data = participantId && accessToken
+    ? await request<EventData>(`/events/${eventId}/responses/${participantId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...body, accessToken }),
+      })
+    : await request<EventData>(`/events/${eventId}/responses/`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
   if (input.nickname) saveUserNickname(input.nickname);
   if (input.email) saveUserEmail(input.email);
-  saveVisitedEvent(data.event);
-  return data.event;
+  saveVisitedEvent(data);
+  return data;
+}
+
+export async function verifyResponse(eventId: string, nickname: string, password: string): Promise<VerifyResponseResult> {
+  const data = await request<{ id?: string; responseId?: string; accessToken: string }>(`/events/${eventId}/responses/verify/`, {
+    method: "POST",
+    body: JSON.stringify({ nickname, password }),
+  });
+  const responseId = data.responseId || data.id;
+  if (!responseId || !data.accessToken) throw new Error("身份驗證回應格式錯誤");
+  return { responseId, accessToken: data.accessToken };
 }
 
 export async function finalizeEvent(eventId: string, input: FinalizeEventInput): Promise<EventData> {

@@ -127,3 +127,55 @@ export interface SlotStats {
   score: number; // e.g. available*2 + ifNeeded*1
   percentage: number; // percentage of total participants who are available
 }
+
+// --- Backend (jiu-sync API) shapes --- //
+
+// Server-computed lifecycle label; the frontend renders it as-is instead of
+// re-deriving it from status/responseDeadline.
+export type DisplayStatus =
+  | 'voting_open'
+  | 'voting_closed_pending'
+  | 'finalized_upcoming'
+  | 'finalized_past'
+  | 'cancelled'
+  | 'link_expired';
+
+export interface ApiSlot {
+  id?: string;
+  date: string; // YYYY-MM-DD
+  time: string | null; // "HH:MM:SS"; null in date_only mode
+  label: string | null;
+}
+
+// One row of GET /api/events/?owner=me ("我揪的團").
+export interface EventSummary {
+  id: string;
+  title: string;
+  hostNickname: string;
+  mode: EventMode;
+  responseDeadline: string;
+  location: string | null;
+  description: string | null;
+  status: 'active' | 'finalized' | 'cancelled';
+  displayStatus: DisplayStatus;
+  isOwner: boolean;
+  responseCount: number;
+  slots?: ApiSlot[];
+  finalSlotId?: string | null;
+  finalNote?: string | null;
+}
+
+export interface CreateEventRequest {
+  title: string;
+  hostNickname: string;
+  mode: EventMode;
+  responseDeadline: string;
+  location: string | null;
+  description: string | null;
+  slots: Omit<ApiSlot, 'id'>[];
+}
+
+export interface CreateEventResult {
+  id: string;
+  shareUrl: string;
+}

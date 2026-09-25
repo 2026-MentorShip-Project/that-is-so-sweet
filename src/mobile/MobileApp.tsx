@@ -1,5 +1,5 @@
 import React from "react";
-import { EventData, CreateEventInput, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant, ToastMessage } from "../types";
+import { EventData, EventSummary, CreateEventResult, CreateEventInput, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant, ToastMessage } from "../types";
 import { VisitedEventItem } from "../lib/api";
 import { CreateWizard } from "./CreateWizard";
 import { EventScreen } from "./EventScreen";
@@ -9,6 +9,7 @@ import { Toast } from "./Toast";
 import { LoginScreen } from "./LoginScreen";
 import { HostHome } from "./HostHome";
 import { GoogleLoginOverlay } from "./GoogleLoginOverlay";
+import { EventCreatedModal } from "../components/EventCreatedModal";
 import { FakeUser } from "../lib/fakeAuth";
 
 interface MobileAppProps {
@@ -32,6 +33,12 @@ interface MobileAppProps {
   isHistoryOpen: boolean;
   setIsHistoryOpen: (open: boolean) => void;
   historyList: VisitedEventItem[];
+  myEvents: EventSummary[];
+  isLoadingMyEvents: boolean;
+  myEventsError: string | null;
+  onRetryMyEvents: () => void;
+  createdEvent: (CreateEventResult & { title: string }) | null;
+  onCloseCreatedEvent: () => void;
   onSelectEvent: (id: string) => void;
   onLoadDemo: (id: string, hostToken?: string) => void;
   onCopySuccess: () => void;
@@ -65,6 +72,12 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   isHistoryOpen,
   setIsHistoryOpen,
   historyList,
+  myEvents,
+  isLoadingMyEvents,
+  myEventsError,
+  onRetryMyEvents,
+  createdEvent,
+  onCloseCreatedEvent,
   onSelectEvent,
   onLoadDemo,
   onCopySuccess,
@@ -124,7 +137,10 @@ export const MobileApp: React.FC<MobileAppProps> = ({
             <HostHome
               user={user}
               onLogout={onLogout}
-              events={historyList}
+              events={myEvents}
+              isLoadingEvents={isLoadingMyEvents}
+              eventsError={myEventsError}
+              onRetryEvents={onRetryMyEvents}
               onCreateEvent={onOpenCreate}
               onSelectEvent={onSelectEvent}
               onLoadDemo={onLoadDemo}
@@ -158,6 +174,10 @@ export const MobileApp: React.FC<MobileAppProps> = ({
 
         {isHistoryOpen && (
           <HistoryModal onClose={() => setIsHistoryOpen(false)} eventsList={historyList} onSelectEvent={onSelectEvent} onLoadDemo={onLoadDemo} />
+        )}
+
+        {createdEvent && (
+          <EventCreatedModal title={createdEvent.title} shareUrl={createdEvent.shareUrl} onClose={onCloseCreatedEvent} onCopySuccess={onCopySuccess} />
         )}
 
         <Toast items={toasts} />

@@ -43,6 +43,12 @@ import { RefreshCw, AlertTriangle } from "lucide-react";
 
 const BASE_PATH = import.meta.env.BASE_URL;
 
+// demo-* events only exist in the localStorage store; everything else is the backend's.
+const isDemoEvent = (eventId: string) => eventId.startsWith("demo-");
+
+const errorMessage = (err: any, fallback: string): string =>
+  err instanceof ApiError ? err.displayMessage : err?.message || fallback;
+
 function currentRoute(): AppRoute {
   return parseRoute(window.location, BASE_PATH);
 }
@@ -105,7 +111,7 @@ export default function App() {
     setIsLoading(true);
     setPageError(null);
     try {
-      if (id.startsWith("demo-")) {
+      if (isDemoEvent(id)) {
         // Demo events only exist in the localStorage store.
         // Priority: tokenParam -> LocalStorage token
         const storedToken = getHostToken(id);
@@ -226,15 +232,13 @@ export default function App() {
     if (!currentEventId || !currentHostToken) return;
     setIsLoading(true);
     try {
-      const updated = await finalizeEvent(currentEventId, {
-        hostToken: currentHostToken,
-        finalSlotId,
-        finalNote,
-      });
+      const updated = isDemoEvent(currentEventId)
+        ? await finalizeEvent(currentEventId, { hostToken: currentHostToken, finalSlotId, finalNote })
+        : await eventsApi.finalizeEvent(currentEventId, { finalSlotId, finalNote });
       setEventData(updated);
       addToast("success", "聚會時間已拍板定案！結果已發布");
     } catch (err: any) {
-      addToast("error", err.message || "拍板定案失敗");
+      addToast("error", errorMessage(err, "拍板定案失敗"));
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +276,7 @@ export default function App() {
     if (!currentEventId || !currentHostToken || !eventData) return;
     setIsLoading(true);
     try {
-      const updated = currentEventId.startsWith("demo-")
+      const updated = isDemoEvent(currentEventId)
         ? await updateEvent(currentEventId, { hostToken: currentHostToken, ...input })
         : await eventsApi.updateEvent(eventData, input);
       setEventData(updated);

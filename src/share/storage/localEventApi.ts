@@ -1,7 +1,5 @@
 import {
   EventData,
-  AvailabilityStatus,
-  ParticipantResponse,
   CreateEventInput,
   SubmitResponseInput,
   FinalizeEventInput,
@@ -18,61 +16,9 @@ const LOCAL_USER_NICKNAME_KEY = "gathertime_user_nickname";
 const LOCAL_USER_EMAIL_KEY = "gathertime_user_email";
 const LOCAL_MY_EVENTS_KEY = "gathertime_my_events"; // Array of event IDs visited or created
 const LOCAL_RECENT_SLOT_PRESETS_KEY = "gathertime_recent_slot_presets"; // Array of { start, label } from the last created event
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
-interface ApiSlotAvailability {
-  slotId: string;
-  availability: AvailabilityStatus;
-}
-
-interface ApiParticipantResponse {
-  id: string;
-  nickname: string;
-  comment: string | null;
-  slotAvailabilities: ApiSlotAvailability[];
-}
-
-export interface VerifiedResponse {
-  id: string;
-  accessToken: string;
-  nickname: string;
-  email: string | null;
-  availability: Record<string, AvailabilityStatus>;
-}
-
-export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string) {
-    super(message);
-  }
-}
-
-async function request<T>(path: string, init: RequestInit & { headers?: Record<string, string> }): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
-  });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(body?.message || "API 請求失敗", response.status, body?.code);
-  }
-  return body as T;
-}
-
-const toAvailabilityMap = (items: ApiSlotAvailability[]): Record<string, AvailabilityStatus> =>
-  Object.fromEntries(items.map((item) => [item.slotId, item.availability]));
-
-const toSlotAvailabilities = (availability: Record<string, AvailabilityStatus>): ApiSlotAvailability[] =>
-  Object.entries(availability).map(([slotId, status]) => ({ slotId, availability: status }));
-
-const toParticipantResponse = (r: ApiParticipantResponse): ParticipantResponse => ({
-  id: r.id,
-  nickname: r.nickname,
-  comment: r.comment || undefined,
-  availability: toAvailabilityMap(r.slotAvailabilities),
-});
-
-// Except submitResponse/verifyResponse, everything below reads/writes this browser's localStorage only (see
-// ../../lib/localEventStore.ts) — there is no server, so nothing here syncs across
+// Everything below reads/writes this browser's localStorage only (see
+// ../lib/localEventStore.ts) — there is no server, so nothing here syncs across
 // devices. Kept as async functions so callers don't need to change.
 
 export async function fetchEvent(id: string, hostToken?: string): Promise<EventData & { isHost?: boolean }> {
@@ -89,31 +35,12 @@ export async function createEvent(input: CreateEventInput): Promise<{ event: Eve
   return data;
 }
 
-export async function submitResponse(eventId: string, input: SubmitResponseInput): Promise<ParticipantResponse[]> {
-  const { participantId, accessToken, nickname, email, password, availability, comment } = input;
-  const slotAvailabilities = toSlotAvailabilities(availability);
-  // PATCH only accepts slotAvailabilities; the backend ignores nickname/email/comment on edit.
-  const event = participantId && accessToken
-    ? await request<{ responses: ApiParticipantResponse[] }>(`/events/${eventId}/responses/${participantId}/`, {
-        method: "PATCH",
-        body: JSON.stringify({ accessToken, slotAvailabilities }),
-      })
-    : await request<{ responses: ApiParticipantResponse[] }>(`/events/${eventId}/responses/`, {
-        method: "POST",
-        body: JSON.stringify({ nickname, email: email || null, phoneLastThree: password, comment, slotAvailabilities }),
-      });
-  if (nickname) saveUserNickname(nickname);
-  if (email) saveUserEmail(email);
-  return event.responses.map(toParticipantResponse);
-}
-
-export async function verifyResponse(eventId: string, nickname: string, phoneLastThree: string): Promise<VerifiedResponse> {
-  const data = await request<Omit<VerifiedResponse, "availability"> & { slotAvailabilities: ApiSlotAvailability[] }>(
-    `/events/${eventId}/responses/verify/`,
-    { method: "POST", body: JSON.stringify({ nickname, phoneLastThree }) },
-  );
-  const { slotAvailabilities, ...identity } = data;
-  return { ...identity, availability: toAvailabilityMap(slotAvailabilities) };
+export async function submitResponse(eventId: string, input: SubmitResponseInput): Promise<EventData> {
+  const data = store.submitResponse(eventId, input);
+  if (input.nickname) saveUserNickname(input.nickname);
+  if (input.email) saveUserEmail(input.email);
+  saveVisitedEvent(data.event);
+  return data.event;
 }
 
 export async function finalizeEvent(eventId: string, input: FinalizeEventInput): Promise<EventData> {

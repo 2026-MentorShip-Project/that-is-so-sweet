@@ -1,5 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, listComments, postComment, deleteComment, fromApiEvent, API_OWNER_HOST_TOKEN } from "../api/eventsApi";
+import {
+  createEvent,
+  getEvent,
+  listMyEvents,
+  updateEvent,
+  finalizeEvent,
+  reopenEvent,
+  cancelEvent,
+  listComments,
+  postComment,
+  deleteComment,
+  fromApiEvent,
+  submitResponse,
+  verifyResponse,
+  API_OWNER_HOST_TOKEN,
+} from "../api/eventsApi";
 import { ApiError } from "../api/http";
 import { CreateEventInput } from "../types";
 
@@ -504,5 +519,96 @@ describe("deleteComment", () => {
 
     expect(err.code).toBe("COMMENT_NOT_FOUND");
     expect(err.displayMessage).toBe("找不到此留言");
+  });
+});
+
+describe("submitResponse", () => {
+  const vote = {
+    nickname: "阿傑",
+    email: "",
+    password: "123",
+    availability: { "slot-a": "available", "slot-b": "if_needed" } as const,
+    comment: "19:00 才能到",
+  };
+
+  it("POSTs a first vote in the backend shape and returns the updated responses", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, apiEvent));
+
+    const responses = await submitResponse("irt9DIwH", vote);
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/responses/");
+    expect(init.method).toBe("POST");
+    expect(headers.has("Authorization")).toBe(false);
+    expect(JSON.parse(init.body as string)).toEqual({
+      nickname: "阿傑",
+      email: null,
+      phoneLastThree: "123",
+      comment: "19:00 才能到",
+      slotAvailabilities: [
+        { slotId: "slot-a", availability: "available" },
+        { slotId: "slot-b", availability: "if_needed" },
+      ],
+    });
+    expect(responses).toMatchObject([{ id: "resp1", availability: { "slot-a": "available", "slot-b": "if_needed" } }]);
+  });
+
+  it("PATCHes only the access token and slot choices when editing", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, apiEvent));
+
+    await submitResponse("irt9DIwH", { ...vote, participantId: "resp1", accessToken: "one-time" });
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/responses/resp1/");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({
+      accessToken: "one-time",
+      slotAvailabilities: [
+        { slotId: "slot-a", availability: "available" },
+        { slotId: "slot-b", availability: "if_needed" },
+      ],
+    });
+  });
+
+  it("keeps the backend code when a used access token is rejected", async () => {
+    storedToken = null;
+    fetchMock.mockResolvedValue(jsonResponse(401, { message: "存取憑證無效或已過期", code: "ACCESS_TOKEN_INVALID" }));
+
+    const err = await submitResponse("irt9DIwH", { ...vote, participantId: "resp1", accessToken: "used" }).catch((e) => e);
+
+    expect(err.code).toBe("ACCESS_TOKEN_INVALID");
+  });
+});
+
+describe("verifyResponse", () => {
+  it("sends nickname and phoneLastThree and adapts the returned vote", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        accessToken: "one-time",
+        expiresAt: "2026-09-25T12:30:00Z",
+        id: "resp1",
+        nickname: "阿傑",
+        email: null,
+        slotAvailabilities: [{ slotId: "slot-a", availability: "unavailable" }],
+      }),
+    );
+
+    const verified = await verifyResponse("irt9DIwH", "阿傑", "123");
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/responses/verify/");
+    expect(JSON.parse(init.body as string)).toEqual({ nickname: "阿傑", phoneLastThree: "123" });
+    expect(verified).toMatchObject({ id: "resp1", accessToken: "one-time", nickname: "阿傑", availability: { "slot-a": "unavailable" } });
+  });
+
+  it("keeps IDENTITY_VERIFICATION_FAILED even when no login token is configured", async () => {
+    storedToken = null;
+    fetchMock.mockResolvedValue(jsonResponse(401, { message: "暱稱或手機末三碼不正確", code: "IDENTITY_VERIFICATION_FAILED" }));
+
+    const err = await verifyResponse("irt9DIwH", "阿傑", "999").catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe("IDENTITY_VERIFICATION_FAILED");
+    expect(err.displayMessage).toBe("暱稱或手機末三碼不正確");
   });
 });

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { PlusCircle, MapPin, Clock, Users, RefreshCw } from "lucide-react";
 import { EventSummary } from "../types";
-import { getDisplayStatusInfo, formatDeadline, HostListTab } from "../lib/eventStatus";
+import { getDisplayStatusInfo, formatDeadline, HostListTab } from "../share/eventStatus";
 import { DEMO_EVENTS, getDemoEventBadge } from "../mocks/demoEvents";
 import { Badge, Button } from "../design-system/components";
 

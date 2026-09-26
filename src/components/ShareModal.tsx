@@ -1,8 +1,8 @@
 import React from "react";
 import { X, Check, Clock, PartyPopper, Ban, Crown, Share2 } from "lucide-react";
 import { EventData } from "../types";
-import { getEventShareUrl, getShareContent, ShareKind } from "../lib/shareText";
-import { canShare, shareText } from "../lib/share";
+import { getEventShareUrl, getShareContent, ShareKind } from "../share/shareText";
+import { canShare, shareText } from "../share/share";
 import { Button } from "../design-system/components";
 
 interface ShareModalProps {

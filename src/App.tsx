@@ -8,8 +8,8 @@ import { HostDashboard } from "./components/HostDashboard";
 import { GoogleLoginOverlay } from "./components/GoogleLoginOverlay";
 import { Toast } from "./components/Toast";
 import { EventCreatedModal } from "./components/EventCreatedModal";
-import { MobileApp } from "./mobile/MobileApp";
-import { useViewport } from "./lib/useViewport";
+import { MobileApp } from "./pages/app/MobileApp";
+import { useViewport } from "./share/useViewport";
 import { useFakeAuth } from "./mocks/fakeAuth";
 import {
   EventData,
@@ -35,10 +35,10 @@ import {
   getVisitedEvents,
   saveUserNickname,
   VisitedEventItem
-} from "./lib/api";
-import * as eventsApi from "./lib/eventsApi";
-import { ApiError } from "./lib/http";
-import { AppRoute, RouteTarget, buildUrl, parseRoute } from "./lib/router";
+} from "./share/api";
+import * as eventsApi from "./api/eventsApi";
+import { ApiError } from "./api/http";
+import { AppRoute, RouteTarget, buildUrl, parseRoute } from "./share/router";
 import { RefreshCw, AlertTriangle } from "lucide-react";
 
 const BASE_PATH = import.meta.env.BASE_URL;

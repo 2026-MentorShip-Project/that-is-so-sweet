@@ -1,5 +1,5 @@
 import { peekEvent } from "../lib/localEventStore.js";
-import { getLifecycleStatus, isLinkExpired } from "../lib/eventStatus.js";
+import { getLifecycleStatus, isLinkExpired } from "../share/eventStatus.js";
 
 export interface DemoEventInfo {
   id: string;

@@ -9,7 +9,7 @@ import {
   SITUATIONAL_OPTIONS,
   SPICE_OPTIONS,
   CUISINE_OPTIONS,
-} from "../../lib/aiRecommendDemo";
+} from "../../mocks/aiRecommendDemo";
 
 interface PreferenceFormStepProps {
   form: PreferenceFormState;

@@ -10,7 +10,7 @@ import { LoginScreen } from "./LoginScreen";
 import { HostHome } from "./HostHome";
 import { GoogleLoginOverlay } from "./GoogleLoginOverlay";
 import { EventCreatedModal } from "../components/EventCreatedModal";
-import { FakeUser } from "../lib/fakeAuth";
+import { FakeUser } from "../mocks/fakeAuth";
 
 interface MobileAppProps {
   currentEventId: string | null;

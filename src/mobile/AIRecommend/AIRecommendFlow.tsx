@@ -2,9 +2,9 @@ import React, { useMemo, useState } from "react";
 import { X, ChevronLeft, Info } from "lucide-react";
 import { EventData, AiSelectedRestaurant } from "../../types";
 import { useViewport } from "../../lib/useViewport";
-import { PreferenceFormState, emptyPreferenceForm, getCandidates, Candidate, candidateReason, partySizeForCount } from "../../lib/aiRecommendDemo";
+import { PreferenceFormState, emptyPreferenceForm, getCandidates, Candidate, candidateReason, partySizeForCount } from "../../mocks/aiRecommendDemo";
 import { buildFinalizedBroadcast } from "../../lib/shareText";
-import { getMonthlyAiUsage, hasReachedMonthlyAiLimit, recordAiUsage } from "../../lib/aiUsage";
+import { getMonthlyAiUsage, hasReachedMonthlyAiLimit, recordAiUsage } from "../../mocks/aiUsage";
 import { PreferenceFormStep } from "./PreferenceFormStep";
 import { RecommendResultsStep } from "./RecommendResultsStep";
 

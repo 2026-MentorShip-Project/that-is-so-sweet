@@ -2,7 +2,7 @@ import React from "react";
 import { Sparkles, Star, MapPin, ExternalLink, RefreshCw, PartyPopper, Share2, Copy } from "lucide-react";
 import { Button, Tag } from "../../design-system/components";
 import { cardStyle } from "../mobileStyles";
-import { Candidate, PreferenceFormState, candidateReason, buildRestateSummary } from "../../lib/aiRecommendDemo";
+import { Candidate, PreferenceFormState, candidateReason, buildRestateSummary } from "../../mocks/aiRecommendDemo";
 import { canShare, shareText } from "../../lib/share";
 
 interface RecommendResultsStepProps {

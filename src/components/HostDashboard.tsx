@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { PlusCircle, MapPin, Clock, Users, RefreshCw } from "lucide-react";
 import { EventSummary } from "../types";
 import { getDisplayStatusInfo, formatDeadline, HostListTab } from "../lib/eventStatus";
-import { DEMO_EVENTS, getDemoEventBadge } from "../lib/demoEvents";
+import { DEMO_EVENTS, getDemoEventBadge } from "../mocks/demoEvents";
 import { Badge, Button } from "../design-system/components";
 
 interface HostDashboardProps {

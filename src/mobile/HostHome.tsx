@@ -4,10 +4,10 @@ import { TopBar } from "./TopBar";
 import { UserMenu } from "./UserMenu";
 import { EventSummary } from "../types";
 import { getDisplayStatusInfo, formatDeadline, HostListTab } from "../lib/eventStatus";
-import { DEMO_EVENTS, getDemoEventBadge } from "../lib/demoEvents";
+import { DEMO_EVENTS, getDemoEventBadge } from "../mocks/demoEvents";
 import { Badge, Button } from "../design-system/components";
 import { cardStyle, SectionLabel } from "./mobileStyles";
-import { FakeUser } from "../lib/fakeAuth";
+import { FakeUser } from "../mocks/fakeAuth";
 
 interface HostHomeProps {
   user: FakeUser;

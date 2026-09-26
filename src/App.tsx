@@ -10,7 +10,7 @@ import { Toast } from "./components/Toast";
 import { EventCreatedModal } from "./components/EventCreatedModal";
 import { MobileApp } from "./mobile/MobileApp";
 import { useViewport } from "./lib/useViewport";
-import { useFakeAuth } from "./lib/fakeAuth";
+import { useFakeAuth } from "./mocks/fakeAuth";
 import {
   EventData,
   CreateEventInput,

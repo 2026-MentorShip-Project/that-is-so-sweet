@@ -1,7 +1,7 @@
 // Thin fetch wrapper for the real jiu-sync backend (Django REST).
 //
 // Auth is temporary: the Google login in this app is still simulated (see
-// ./fakeAuth.ts), so there is no real JWT flow yet. Until the Auth module is
+// ../mocks/fakeAuth.ts), so there is no real JWT flow yet. Until the Auth module is
 // wired up, the access token is pasted in manually — either via
 // `localStorage.setItem("jiu_access_token", "<token>")` in the devtools
 // console, or `VITE_DEV_ACCESS_TOKEN` in `.env.local`. localStorage wins so a

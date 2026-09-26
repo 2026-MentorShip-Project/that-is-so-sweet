@@ -1,6 +1,6 @@
 import React from "react";
 import { CalendarHeart, PlusCircle, History, Share2, LogIn } from "lucide-react";
-import { FakeUser } from "../lib/fakeAuth";
+import { FakeUser } from "../mocks/fakeAuth";
 import { UserMenu } from "./UserMenu";
 
 interface HeaderProps {

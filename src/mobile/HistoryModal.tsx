@@ -2,7 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { VisitedEventItem } from "../lib/api";
 import { getLifecycleStatusFromSnapshot } from "../lib/eventStatus";
-import { DEMO_EVENTS, getDemoEventBadge } from "../lib/demoEvents";
+import { DEMO_EVENTS, getDemoEventBadge } from "../mocks/demoEvents";
 import { Badge } from "../design-system/components";
 
 interface HistoryModalProps {

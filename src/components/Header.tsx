@@ -1,9 +1,11 @@
 import React from "react";
-import { CalendarHeart, PlusCircle, History, Share2, LogIn } from "lucide-react";
-import { FakeUser } from "../mocks/fakeAuth";
+import { CalendarHeart, PlusCircle, History, Share2 } from "lucide-react";
+import { AuthUser } from "../types";
 import { UserMenu } from "./UserMenu";
+import { GoogleLogin } from "@react-oauth/google";
 
 interface HeaderProps {
+  onLogin: (idToken: string) => Promise<void>;
   onNewEvent: () => void;
   onCreateEvent: () => void;
   onOpenMyEvents: () => void;
@@ -14,8 +16,7 @@ interface HeaderProps {
   isOnDashboardPage?: boolean;
   onOpenShareModal?: () => void;
   activeEventTitle?: string;
-  user: FakeUser | null;
-  onLogin: () => void;
+  user: AuthUser | null;
   onLogout: () => void;
 }
 
@@ -120,10 +121,12 @@ export const Header: React.FC<HeaderProps> = ({
               <UserMenu user={user} onLogout={onLogout} />
             </>
           ) : (
-            <button onClick={onLogin} style={pillBtnStyle}>
-              <LogIn size={14} />
-              使用 Google 登入
-            </button>
+            <GoogleLogin
+              onSuccess={(res) => { void onLogin(res.credential!); }}
+              onError={() => { /* user closed popup — no action needed */ }}
+              size="large"
+              shape="pill"
+            />
           )}
         </div>
       </div>

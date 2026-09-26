@@ -8,9 +8,8 @@ import { HistoryModal } from "../../components/app/HistoryModal";
 import { Toast } from "../../components/app/Toast";
 import { LoginScreen } from "./LoginScreen";
 import { HostHome } from "./HostHome";
-import { GoogleLoginOverlay } from "../../components/app/GoogleLoginOverlay";
 import { EventCreatedModal } from "../../components/EventCreatedModal";
-import { FakeUser } from "../../mocks/fakeAuth";
+import { AuthUser } from "../../types";
 
 interface MobileAppProps {
   currentEventId: string | null;
@@ -46,9 +45,10 @@ interface MobileAppProps {
   onLoadDemo: (id: string, hostToken?: string) => void;
   onCopySuccess: () => void;
   toasts: ToastMessage[];
-  user: FakeUser | null;
+  user: AuthUser | null;
   isAuthenticating: boolean;
-  onLogin: () => void;
+  authError: string | null;
+  onLogin: (idToken: string) => Promise<void>;
   onLogout: () => void;
   homeView: "dashboard" | "create";
   onOpenCreate: () => void;
@@ -89,6 +89,7 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   toasts,
   user,
   isAuthenticating,
+  authError,
   onLogin,
   onLogout,
   homeView,
@@ -135,7 +136,7 @@ export const MobileApp: React.FC<MobileAppProps> = ({
 
         {!isLoading && !pageError && !currentEventId && (
           !user ? (
-            <LoginScreen onLogin={onLogin} />
+            <LoginScreen onLogin={onLogin} isAuthenticating={isAuthenticating} authError={authError} />
           ) : homeView === "create" ? (
             <CreateWizard onSubmit={onCreateEvent} isLoading={isLoading} onOpenHistory={() => setIsHistoryOpen(true)} hostEmail={user.email} />
           ) : (
@@ -189,7 +190,6 @@ export const MobileApp: React.FC<MobileAppProps> = ({
 
         <Toast items={toasts} />
 
-        {isAuthenticating && <GoogleLoginOverlay />}
       </div>
     </div>
   );

@@ -7,10 +7,10 @@ import { getDisplayStatusInfo, formatDeadline, HostListTab } from "../../share/e
 import { DEMO_EVENTS, getDemoEventBadge } from "../../mocks/demoEvents";
 import { Badge, Button } from "../../design-system/components";
 import { cardStyle, SectionLabel } from "../../components/app/mobileStyles";
-import { FakeUser } from "../../mocks/fakeAuth";
+import { AuthUser } from "../../types";
 
 interface HostHomeProps {
-  user: FakeUser;
+  user: AuthUser;
   onLogout: () => void;
   events: EventSummary[];
   isLoadingEvents: boolean;

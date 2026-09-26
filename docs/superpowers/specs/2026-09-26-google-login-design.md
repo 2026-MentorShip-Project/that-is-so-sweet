@@ -40,9 +40,23 @@ Success: { "access": "string", "refresh": "string", "user": { "id": "string", "n
 </GoogleOAuthProvider>
 ```
 
-### New auth module: `src/lib/googleAuth.ts`
+### New API module: `src/api/authApi.ts`
 
-Replaces `src/mocks/fakeAuth.ts`. Manages three localStorage keys:
+Sits alongside `eventsApi.ts`. Handles the backend call:
+
+```ts
+export function googleSignIn(idToken: string): Promise<{ access: string; refresh: string; user: AuthUser }> {
+  return apiFetch("/api/auth/google/", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+    skipAuth: true,
+  });
+}
+```
+
+### New auth hook: `src/lib/googleAuth.ts`
+
+Replaces `src/mocks/fakeAuth.ts`. Calls `authApi.googleSignIn`, then manages three localStorage keys:
 
 | Key | Contents |
 |-----|----------|
@@ -54,7 +68,7 @@ Exports:
 - `AuthUser` interface `{ id: string; name: string; email: string }`
 - `useGoogleAuth()` hook returning `{ user, isAuthenticating, authError, loginWithIdToken, logout }`
 
-`loginWithIdToken(idToken)` calls `apiFetch` with `skipAuth: true`, stores all three keys on success, sets `user` state.  
+`loginWithIdToken(idToken)` calls `authApi.googleSignIn`, stores all three keys on success, sets `user` state.  
 `logout()` removes all three keys and clears `user` state.
 
 `isAuthenticating` is `true` only during the backend API call (after the Google popup closes, before the backend responds). The Google popup itself shows Google's own loading UI.
@@ -91,7 +105,8 @@ Replace `useFakeAuth()` with `useGoogleAuth()`. Pass `loginWithIdToken` as `onLo
 
 | File | Action |
 |------|--------|
-| `src/lib/googleAuth.ts` | **Create** — auth hook and storage helpers |
+| `src/api/authApi.ts` | **Create** — `googleSignIn()` API call |
+| `src/lib/googleAuth.ts` | **Create** — auth hook and localStorage helpers |
 | `src/types.ts` | **Edit** — add `AuthUser`, remove or alias `FakeUser` |
 | `src/main.tsx` | **Edit** — add `GoogleOAuthProvider` |
 | `src/App.tsx` | **Edit** — swap hook, update `onLogin` prop type |

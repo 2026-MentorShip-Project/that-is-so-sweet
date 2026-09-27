@@ -208,3 +208,14 @@ export interface ApiEvent extends Omit<EventSummary, 'responseCount' | 'slots'> 
   finalNote: string | null;
   finalAttendees: { id: string; nickname: string; comment: string | null }[];
 }
+
+// GET /api/events/{id}/poll/ — cheap change signal, polled every few seconds.
+export interface EventPollStatus {
+  status: 'active' | 'finalized' | 'cancelled';
+  displayStatus: DisplayStatus;
+  eventUpdatedAt: string;
+  responseCount: number;
+  latestResponseAt: string | null;
+  commentCount: number;
+  latestCommentAt: string | null;
+}

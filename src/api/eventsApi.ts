@@ -1,7 +1,7 @@
 // Events module (模組01/03/07/10) against the real backend. The rest of the
 // app still goes through ../share/api.ts (localStorage) until each endpoint is
 // migrated.
-import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventSummary, UpdateEventInput } from "../types";
+import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventPollStatus, EventSummary, UpdateEventInput } from "../types";
 import { apiFetch } from "./http";
 
 export function listMyEvents(): Promise<EventSummary[]> {
@@ -121,6 +121,12 @@ export async function reopenEvent(eventId: string, responseDeadline: string): Pr
 export async function cancelEvent(eventId: string): Promise<EventData & { isOwner: boolean }> {
   const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "cancel"), { method: "POST" });
   return fromApiEvent(data);
+}
+
+// Public, like GET /api/events/{id}/ — the token only matters for isOwner,
+// so a stale one falls back to an anonymous retry.
+export function getEventPoll(eventId: string): Promise<EventPollStatus> {
+  return apiFetch<EventPollStatus>(`/api/events/${encodeURIComponent(eventId)}/poll/`, { optionalAuth: true });
 }
 
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API

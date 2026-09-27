@@ -1,6 +1,9 @@
 import { peekEvent } from "../lib/localEventStore.js";
 import { getLifecycleStatus, isLinkExpired } from "../share/eventStatus.js";
 
+// demo-* events only exist in the localStorage store; everything else is the backend's.
+export const isDemoEvent = (id: string) => id.startsWith("demo-");
+
 export interface DemoEventInfo {
   id: string;
   label: string;

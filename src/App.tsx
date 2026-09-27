@@ -75,6 +75,12 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [historyList, setHistoryList] = useState<VisitedEventItem[]>([]);
   const { user, isAuthenticating, authError, loginWithIdToken, logout } = useGoogleAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate({ name: "home" });
+  };
+  
   // "我揪的團" comes from GET /api/events/?owner=me (per account, not per device).
   const [myEvents, setMyEvents] = useState<EventSummary[]>([]);
   const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(false);
@@ -193,6 +199,12 @@ export default function App() {
     if (change.event) refreshEvent(pollingEventId);
     if (change.comments) refreshComments(pollingEventId);
   });
+  
+  useEffect(() => {
+    const handler = () => navigate({ name: "home" });
+    window.addEventListener("auth:session-expired", handler);
+    return () => window.removeEventListener("auth:session-expired", handler);
+  }, []);
 
   // Browser back/forward, plus a one-time rewrite of old "#event=" links
   // (and the backend's shareUrl) to the canonical path.
@@ -501,7 +513,7 @@ export default function App() {
         user={user}
         isAuthenticating={isAuthenticating}
         onLogin={loginWithIdToken}
-        onLogout={logout}
+        onLogout={handleLogout}
         authError={authError}
         homeView={homeView}
         onOpenCreate={() => navigate({ name: "create" })}
@@ -521,7 +533,7 @@ export default function App() {
         activeEventTitle={eventData?.title}
         user={user}
         onLogin={loginWithIdToken}
-        onLogout={logout}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}

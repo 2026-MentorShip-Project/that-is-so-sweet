@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildUrl, parseRoute } from "./router";
+import { buildUrl, parseRoute } from "../share/router";
 
 const BASE = "/That-is-so-sweet/";
 const at = (pathname: string, search = "", hash = "") => parseRoute({ pathname, search, hash }, BASE);

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { CalendarDays, ChevronLeft } from "lucide-react";
 import { OlderCommentsControl, EventData, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant } from "../types";
-import { getUserNickname, getUserEmail } from "../lib/api";
-import { getLifecycleStatus } from "../lib/eventStatus";
+import { getUserNickname, getUserEmail } from "../share/api";
+import { getLifecycleStatus } from "../share/eventStatus";
 import { Badge } from "../design-system/components";
-import { VoteTab } from "../mobile/VoteTab";
-import { HeatmapTab } from "../mobile/HeatmapTab";
-import { FinalizedView } from "../mobile/FinalizedView";
-import { CancelledView } from "../mobile/CancelledView";
-import { CommentBoard } from "../mobile/CommentBoard";
-import { EventInfoCard } from "../mobile/EventInfoCard";
+import { VoteTab } from "./app/VoteTab";
+import { HeatmapTab } from "./app/HeatmapTab";
+import { FinalizedView } from "./app/FinalizedView";
+import { CancelledView } from "./app/CancelledView";
+import { CommentBoard } from "./app/CommentBoard";
+import { EventInfoCard } from "./app/EventInfoCard";
 
 interface EventViewProps {
   event: EventData;

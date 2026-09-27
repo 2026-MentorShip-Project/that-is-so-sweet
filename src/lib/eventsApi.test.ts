@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, listComments, postComment, deleteComment, fromApiEvent, API_OWNER_HOST_TOKEN } from "./eventsApi";
-import { ApiError } from "./http";
+import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, listComments, postComment, deleteComment, fromApiEvent, API_OWNER_HOST_TOKEN } from "../api/eventsApi";
+import { ApiError } from "../api/http";
 import { CreateEventInput } from "../types";
 
 // Only the network (global fetch) and browser storage are stubbed — the

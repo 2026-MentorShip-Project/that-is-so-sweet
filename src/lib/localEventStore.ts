@@ -16,7 +16,7 @@ import {
   TimeSlot,
   AiSelectedRestaurant,
 } from "../types.js";
-import { isVotingOpen, isLinkExpired, canComment } from "./eventStatus.js";
+import { isVotingOpen, isLinkExpired, canComment } from "../share/eventStatus.js";
 
 const STORAGE_KEY = "gathertime_events_db";
 

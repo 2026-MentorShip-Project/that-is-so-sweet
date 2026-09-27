@@ -1,7 +1,19 @@
 // Events module (模組01/03/07/10) against the real backend. The rest of the
 // app still goes through ../share/api.ts (localStorage) until each endpoint is
 // migrated.
-import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventSummary, UpdateEventInput } from "../types";
+import {
+  ApiEvent,
+  ApiSlotAvailability,
+  AvailabilityStatus,
+  CreateEventInput,
+  CreateEventRequest,
+  CreateEventResult,
+  EventData,
+  EventSummary,
+  ParticipantResponse,
+  SubmitResponseInput,
+  UpdateEventInput,
+} from "../types";
 import { apiFetch } from "./http";
 
 export function listMyEvents(): Promise<EventSummary[]> {
@@ -13,6 +25,12 @@ export function listMyEvents(): Promise<EventSummary[]> {
 // logged-in account (isOwner) — so owner events get this fixed placeholder on
 // both sides of that comparison.
 export const API_OWNER_HOST_TOKEN = "__api_owner__";
+
+const toAvailabilityMap = (items: ApiSlotAvailability[]): Record<string, AvailabilityStatus> =>
+  Object.fromEntries(items.map((a) => [a.slotId, a.availability]));
+
+const toSlotAvailabilities = (availability: Record<string, AvailabilityStatus>): ApiSlotAvailability[] =>
+  Object.entries(availability).map(([slotId, status]) => ({ slotId, availability: status }));
 
 // Adapts the backend Event to the EventData shape both UI trees render.
 // Comments come from a separate endpoint (GET /api/events/{id}/comments/, not
@@ -38,7 +56,7 @@ export function fromApiEvent(e: ApiEvent): EventData & { isOwner: boolean } {
       id: r.id,
       nickname: r.nickname,
       comment: r.comment || undefined,
-      availability: Object.fromEntries(r.slotAvailabilities.map((a) => [a.slotId, a.availability])) as Record<string, AvailabilityStatus>,
+      availability: toAvailabilityMap(r.slotAvailabilities),
       updatedAt: "",
     })),
     comments: [],
@@ -121,6 +139,44 @@ export async function reopenEvent(eventId: string, responseDeadline: string): Pr
 export async function cancelEvent(eventId: string): Promise<EventData & { isOwner: boolean }> {
   const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "cancel"), { method: "POST" });
   return fromApiEvent(data);
+}
+
+const responsesPath = (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/responses/`;
+
+// Participant endpoints are public: skipAuth keeps their own 401 codes
+// (IDENTITY_VERIFICATION_FAILED, ACCESS_TOKEN_INVALID) instead of the "please log in" fallback.
+export async function submitResponse(eventId: string, input: SubmitResponseInput): Promise<ParticipantResponse[]> {
+  const { participantId, accessToken, nickname, email, password, availability, comment } = input;
+  const slotAvailabilities = toSlotAvailabilities(availability);
+  // PATCH only accepts slotAvailabilities; the backend ignores nickname/email/comment on edit.
+  const event = participantId && accessToken
+    ? await apiFetch<ApiEvent>(`${responsesPath(eventId)}${encodeURIComponent(participantId)}/`, {
+        method: "PATCH",
+        skipAuth: true,
+        body: JSON.stringify({ accessToken, slotAvailabilities }),
+      })
+    : await apiFetch<ApiEvent>(responsesPath(eventId), {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ nickname, email: email || null, phoneLastThree: password, comment, slotAvailabilities }),
+      });
+  return fromApiEvent(event).responses;
+}
+
+export interface VerifiedResponse {
+  id: string;
+  accessToken: string;
+  nickname: string;
+  email: string | null;
+  availability: Record<string, AvailabilityStatus>;
+}
+
+export async function verifyResponse(eventId: string, nickname: string, phoneLastThree: string): Promise<VerifiedResponse> {
+  const { slotAvailabilities, ...identity } = await apiFetch<Omit<VerifiedResponse, "availability"> & { slotAvailabilities: ApiSlotAvailability[] }>(
+    `${responsesPath(eventId)}verify/`,
+    { method: "POST", skipAuth: true, body: JSON.stringify({ nickname, phoneLastThree }) },
+  );
+  return { ...identity, availability: toAvailabilityMap(slotAvailabilities) };
 }
 
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API

@@ -76,7 +76,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     if (res.status === 401 && token && optionalAuth) {
       return apiFetch<T>(path, { ...init, skipAuth: true });
     }
-    if (res.status === 401 && !token) {
+    if (res.status === 401 && !token && !skipAuth) {
       throw new ApiError(401, "尚未設定 access token，請先登入", "UNAUTHORIZED");
     }
     throw new ApiError(res.status, body?.message || `請求失敗（HTTP ${res.status}）`, body?.code ?? null, body?.errors ?? []);

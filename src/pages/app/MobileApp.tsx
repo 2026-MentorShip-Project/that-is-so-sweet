@@ -1,5 +1,5 @@
 import React from "react";
-import { EventData, EventSummary, CreateEventResult, CreateEventInput, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant, ToastMessage } from "../../types";
+import { OlderCommentsControl, EventData, EventSummary, CreateEventResult, CreateEventInput, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant, ToastMessage } from "../../types";
 import { VisitedEventItem } from "../../share/api";
 import { CreateWizard } from "./CreateWizard";
 import { EventScreen } from "./EventScreen";
@@ -19,7 +19,8 @@ interface MobileAppProps {
   isLoading: boolean;
   pageError: string | null;
   onGoHome: () => void;
-  onCreateEvent: (input: CreateEventInput) => Promise<void>;
+  onCreateEvent: (input: CreateEventInput) => Promise<boolean>;
+  isCreating: boolean;
   onRespond: (input: SubmitResponseInput) => Promise<void>;
   onFinalize: (finalSlotId: string, finalNote?: string) => Promise<void>;
   onReopen: (newDeadline?: string) => Promise<void>;
@@ -29,6 +30,9 @@ interface MobileAppProps {
   isEditing?: boolean;
   onEditingChange?: (open: boolean) => void;
   onSubmitComment: (input: SubmitCommentInput) => Promise<void>;
+  /** Host-only; omitted for demo events, which have no delete in the local store. */
+  onDeleteComment?: (commentId: string) => Promise<void>;
+  olderComments?: OlderCommentsControl;
   onSelectAiRestaurant: (restaurant: AiSelectedRestaurant) => void;
   isShareModalOpen: boolean;
   setIsShareModalOpen: (open: boolean) => void;
@@ -63,6 +67,7 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   pageError,
   onGoHome,
   onCreateEvent,
+  isCreating,
   onRespond,
   onFinalize,
   onReopen,
@@ -71,6 +76,8 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   isEditing,
   onEditingChange,
   onSubmitComment,
+  onDeleteComment,
+  olderComments,
   onSelectAiRestaurant,
   isShareModalOpen,
   setIsShareModalOpen,
@@ -138,7 +145,7 @@ export const MobileApp: React.FC<MobileAppProps> = ({
           !user ? (
             <LoginScreen onLogin={onLogin} isAuthenticating={isAuthenticating} authError={authError} />
           ) : homeView === "create" ? (
-            <CreateWizard onSubmit={onCreateEvent} isLoading={isLoading} onOpenHistory={() => setIsHistoryOpen(true)} hostEmail={user.email} />
+            <CreateWizard onSubmit={onCreateEvent} isLoading={isCreating} onOpenHistory={() => setIsHistoryOpen(true)} hostEmail={user.email} />
           ) : (
             <HostHome
               user={user}
@@ -167,6 +174,8 @@ export const MobileApp: React.FC<MobileAppProps> = ({
             isEditing={isEditing}
             onEditingChange={onEditingChange}
             onSubmitComment={onSubmitComment}
+            onDeleteComment={onDeleteComment}
+            olderComments={olderComments}
             onSelectAiRestaurant={onSelectAiRestaurant}
             onNewEvent={onGoHome}
             onOpenShare={() => setIsShareModalOpen(true)}

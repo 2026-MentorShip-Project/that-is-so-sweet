@@ -110,6 +110,13 @@ export interface UpdateEventInput {
   responseDeadline?: string;
 }
 
+// "載入較早的留言" state for the comment board (backend pages comments).
+export interface OlderCommentsControl {
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoad: () => void;
+}
+
 export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'info';

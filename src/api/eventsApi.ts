@@ -8,9 +8,11 @@ import {
   CreateEventInput,
   CreateEventRequest,
   CreateEventResult,
+  EventComment,
   EventData,
   EventSummary,
   ParticipantResponse,
+  SubmitCommentInput,
   SubmitResponseInput,
   UpdateEventInput,
 } from "../types";
@@ -177,6 +179,41 @@ export async function verifyResponse(eventId: string, nickname: string, phoneLas
     { method: "POST", skipAuth: true, body: JSON.stringify({ nickname, phoneLastThree }) },
   );
   return { ...identity, availability: toAvailabilityMap(slotAvailabilities) };
+}
+
+// --- Comments (模組09) --- //
+// Reading and posting are public (no login, any nickname); only the host can
+// delete. The event payload doesn't include comments, so they're fetched
+// separately.
+
+function commentsPath(eventId: string): string {
+  return `/api/events/${encodeURIComponent(eventId)}/comments/`;
+}
+
+export interface CommentPage {
+  comments: EventComment[]; // oldest first, ready to render top-to-bottom
+  nextCursor: string | null; // pass back to load the next older page; null = no more
+}
+
+// The backend pages 10 at a time, newest first (swagger still documents the
+// older "whole array, oldest first" shape — backend add-comment-pagination
+// changed it). Each page is flipped to oldest first for the board.
+export async function listComments(eventId: string, cursor?: string): Promise<CommentPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const page = await apiFetch<{ comments: EventComment[]; nextCursor: string | null }>(`${commentsPath(eventId)}${query}`, { optionalAuth: true });
+  return { comments: [...page.comments].reverse(), nextCursor: page.nextCursor };
+}
+
+export function postComment(eventId: string, input: SubmitCommentInput): Promise<EventComment> {
+  return apiFetch<EventComment>(commentsPath(eventId), {
+    method: "POST",
+    body: JSON.stringify({ nickname: input.nickname, message: input.message }),
+    optionalAuth: true,
+  });
+}
+
+export async function deleteComment(eventId: string, commentId: string): Promise<void> {
+  await apiFetch<null>(`${commentsPath(eventId)}${encodeURIComponent(commentId)}/`, { method: "DELETE" });
 }
 
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API

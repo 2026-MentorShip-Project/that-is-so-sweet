@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Share2, History, Home, CalendarDays, ChevronLeft } from "lucide-react";
-import { EventData, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant } from "../../types";
+import { OlderCommentsControl, EventData, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant } from "../../types";
 import { getUserNickname, getUserEmail } from "../../share/api";
 import { getLifecycleStatus } from "../../share/eventStatus";
 import { Badge } from "../../design-system/components";
@@ -26,6 +26,9 @@ interface EventScreenProps {
   isEditing?: boolean;
   onEditingChange?: (open: boolean) => void;
   onSubmitComment: (input: SubmitCommentInput) => Promise<void>;
+  /** Host-only; omitted for demo events, which have no delete in the local store. */
+  onDeleteComment?: (commentId: string) => Promise<void>;
+  olderComments?: OlderCommentsControl;
   onSelectAiRestaurant: (restaurant: AiSelectedRestaurant) => void;
   onNewEvent: () => void;
   onOpenShare: () => void;
@@ -46,6 +49,8 @@ export const EventScreen: React.FC<EventScreenProps> = ({
   isEditing,
   onEditingChange,
   onSubmitComment,
+  onDeleteComment,
+  olderComments,
   onSelectAiRestaurant,
   onNewEvent,
   onOpenShare,
@@ -115,14 +120,14 @@ export const EventScreen: React.FC<EventScreenProps> = ({
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" }}>
           <CancelledView event={event} />
           <div style={{ marginTop: 10, borderTop: "8px solid var(--color-cream)", padding: "16px 14px 14px" }}>
-            <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} isLoading={isLoading} />
+            <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} onDelete={isHost ? onDeleteComment : undefined} olderComments={olderComments} isLoading={isLoading} />
           </div>
         </div>
       ) : event.status === "finalized" ? (
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" }}>
           <FinalizedView event={event} isHost={isHost} onReopen={onReopen} onCancelEvent={isHost ? onCancelEvent : undefined} onSelectAiRestaurant={onSelectAiRestaurant} isLoading={isLoading} onCopySuccess={onCopySuccess} />
           <div style={{ marginTop: 10, borderTop: "8px solid var(--color-cream)", padding: "16px 14px 14px" }}>
-            <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} isLoading={isLoading} />
+            <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} onDelete={isHost ? onDeleteComment : undefined} olderComments={olderComments} isLoading={isLoading} />
           </div>
         </div>
       ) : (
@@ -168,7 +173,7 @@ export const EventScreen: React.FC<EventScreenProps> = ({
                 isLoading={isLoading}
               />
               <div style={{ marginTop: 10, borderTop: "8px solid var(--color-cream)", padding: "16px 14px 14px" }}>
-                <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} isLoading={isLoading} />
+                <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} onDelete={isHost ? onDeleteComment : undefined} olderComments={olderComments} isLoading={isLoading} />
               </div>
             </>
           )}

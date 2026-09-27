@@ -36,17 +36,16 @@ import {
   getHostToken,
   getVisitedEvents,
   saveUserNickname,
+  saveUserEmail,
   VisitedEventItem
 } from "./share/api";
 import * as eventsApi from "./api/eventsApi";
+import { isDemoEvent } from "./mocks/demoEvents";
 import { ApiError } from "./api/http";
 import { AppRoute, RouteTarget, buildUrl, parseRoute } from "./share/router";
 import { RefreshCw, AlertTriangle } from "lucide-react";
 
 const BASE_PATH = import.meta.env.BASE_URL;
-
-// demo-* events only exist in the localStorage store; everything else is the backend's.
-const isDemoEvent = (eventId: string) => eventId.startsWith("demo-");
 
 const errorMessage = (err: any, fallback: string): string =>
   err instanceof ApiError ? err.displayMessage : err?.message || fallback;
@@ -280,11 +279,17 @@ export default function App() {
     if (!currentEventId) return;
     setIsLoading(true);
     try {
-      const updated = await submitResponse(currentEventId, input);
-      setEventData(updated);
+      if (isDemoEvent(currentEventId)) {
+        setEventData(await submitResponse(currentEventId, input));
+      } else {
+        const responses = await eventsApi.submitResponse(currentEventId, input);
+        if (input.nickname) saveUserNickname(input.nickname);
+        if (input.email) saveUserEmail(input.email);
+        setEventData((prev) => prev && { ...prev, responses });
+      }
       addToast("success", "您的時間已成功記錄與更新！");
     } catch (err: any) {
-      addToast("error", err.message || "送出時間失敗");
+      addToast("error", errorMessage(err, "送出時間失敗"));
       throw err;
     } finally {
       setIsLoading(false);

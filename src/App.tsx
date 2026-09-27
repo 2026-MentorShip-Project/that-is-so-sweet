@@ -75,6 +75,10 @@ export default function App() {
   const [myEvents, setMyEvents] = useState<EventSummary[]>([]);
   const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(false);
   const [myEventsError, setMyEventsError] = useState<string | null>(null);
+  // Separate from isLoading: the create form is only rendered while
+  // !isLoading, so reusing it would unmount the form mid-submit and wipe the
+  // host's input when creation fails.
+  const [isCreating, setIsCreating] = useState(false);
   const [createdEvent, setCreatedEvent] = useState<(CreateEventResult & { title: string }) | null>(null);
   // Host identity is only honored while "logged in" — logging out strips
   // host-only UI everywhere immediately, even on an event page already open,
@@ -191,13 +195,15 @@ export default function App() {
   }, [user, currentEventId, homeView]);
 
   // Handlers
-  const handleCreateEvent = async (input: CreateEventInput) => {
+  // 回傳值供 CreateEvent/CreateWizard 判斷是否要清空草稿（草稿只在真的
+  // 建立成功時清，驗證失敗或送出失敗都要保留，見 eventDraft.ts）。
+  const handleCreateEvent = async (input: CreateEventInput): Promise<boolean> => {
     const invalid = eventsApi.validateCreateEventInput(input);
     if (invalid) {
       addToast("error", invalid);
-      return;
+      return false;
     }
-    setIsLoading(true);
+    setIsCreating(true);
     try {
       const result = await eventsApi.createEvent(input);
       if (input.hostName) saveUserNickname(input.hostName);
@@ -205,10 +211,12 @@ export default function App() {
       setCreatedEvent({ ...result, title: input.title });
       navigate({ name: "event", eventId: result.id });
       addToast("success", "活動成功建立！專屬連結已產生");
+      return true;
     } catch (err) {
       addToast("error", err instanceof ApiError ? err.displayMessage : "建立活動失敗，請重試");
+      return false;
     } finally {
-      setIsLoading(false);
+      setIsCreating(false);
     }
   };
 
@@ -361,6 +369,7 @@ export default function App() {
         pageError={pageError}
         onGoHome={handleGoHome}
         onCreateEvent={handleCreateEvent}
+        isCreating={isCreating}
         onRespond={handleRespond}
         onFinalize={handleFinalize}
         onReopen={handleReopen}
@@ -440,7 +449,7 @@ export default function App() {
           !user ? (
             <LoginScreen onLogin={loginWithIdToken} isAuthenticating={isAuthenticating} authError={authError} />
           ) : homeView === "create" ? (
-            <CreateEvent onSubmit={handleCreateEvent} isLoading={isLoading} hostEmail={user.email} />
+            <CreateEvent onSubmit={handleCreateEvent} isLoading={isCreating} hostEmail={user.email} />
           ) : (
             <HostDashboard
               events={myEvents}

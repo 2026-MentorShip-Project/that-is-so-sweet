@@ -5,12 +5,11 @@ import { EventView } from "./components/EventView";
 import { ShareModal } from "./components/ShareModal";
 import { LoginScreen } from "./components/LoginScreen";
 import { HostDashboard } from "./components/HostDashboard";
-import { GoogleLoginOverlay } from "./components/GoogleLoginOverlay";
 import { Toast } from "./components/Toast";
 import { EventCreatedModal } from "./components/EventCreatedModal";
-import { MobileApp } from "./mobile/MobileApp";
-import { useViewport } from "./lib/useViewport";
-import { useFakeAuth } from "./lib/fakeAuth";
+import { MobileApp } from "./pages/app/MobileApp";
+import { useViewport } from "./share/useViewport";
+import { useGoogleAuth } from "./lib/googleAuth";
 import {
   EventData,
   CreateEventInput,
@@ -35,10 +34,10 @@ import {
   getVisitedEvents,
   saveUserNickname,
   VisitedEventItem
-} from "./lib/api";
-import * as eventsApi from "./lib/eventsApi";
-import { ApiError } from "./lib/http";
-import { AppRoute, RouteTarget, buildUrl, parseRoute } from "./lib/router";
+} from "./share/api";
+import * as eventsApi from "./api/eventsApi";
+import { ApiError } from "./api/http";
+import { AppRoute, RouteTarget, buildUrl, parseRoute } from "./share/router";
 import { RefreshCw, AlertTriangle } from "lucide-react";
 
 const BASE_PATH = import.meta.env.BASE_URL;
@@ -71,7 +70,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [historyList, setHistoryList] = useState<VisitedEventItem[]>([]);
-  const { user, isAuthenticating, login, logout } = useFakeAuth();
+  const { user, isAuthenticating, authError, loginWithIdToken, logout } = useGoogleAuth();
   // "我揪的團" comes from GET /api/events/?owner=me (per account, not per device).
   const [myEvents, setMyEvents] = useState<EventSummary[]>([]);
   const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(false);
@@ -388,8 +387,9 @@ export default function App() {
         toasts={toasts}
         user={user}
         isAuthenticating={isAuthenticating}
-        onLogin={login}
+        onLogin={loginWithIdToken}
         onLogout={logout}
+        authError={authError}
         homeView={homeView}
         onOpenCreate={() => navigate({ name: "create" })}
       />
@@ -407,7 +407,7 @@ export default function App() {
         onOpenShareModal={eventData ? () => setIsShareModalOpen(true) : undefined}
         activeEventTitle={eventData?.title}
         user={user}
-        onLogin={login}
+        onLogin={loginWithIdToken}
         onLogout={logout}
       />
 
@@ -438,7 +438,7 @@ export default function App() {
 
         {!isLoading && !pageError && !currentEventId && (
           !user ? (
-            <LoginScreen onLogin={login} />
+            <LoginScreen onLogin={loginWithIdToken} isAuthenticating={isAuthenticating} authError={authError} />
           ) : homeView === "create" ? (
             <CreateEvent onSubmit={handleCreateEvent} isLoading={isLoading} hostEmail={user.email} />
           ) : (
@@ -504,8 +504,6 @@ export default function App() {
       {/* Floating Toast Notification Container */}
       <Toast toasts={toasts} onDismiss={removeToast} />
 
-      {/* Fake Google OAuth redirect/popup simulation */}
-      {isAuthenticating && <GoogleLoginOverlay />}
     </div>
   );
 }

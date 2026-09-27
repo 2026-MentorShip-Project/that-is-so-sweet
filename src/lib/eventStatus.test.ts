@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDisplayStatusInfo } from "./eventStatus";
+import { getDisplayStatusInfo } from "../share/eventStatus";
 
 describe("getDisplayStatusInfo", () => {
   it.each([

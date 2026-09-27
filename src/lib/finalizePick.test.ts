@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeSlotStats } from "./slots";
-import { defaultFinalSlotId, finalizeWarning } from "./finalizePick";
+import { computeSlotStats } from "../share/slots";
+import { defaultFinalSlotId, finalizeWarning } from "../share/finalizePick";
 import { ParticipantResponse, TimeSlot } from "../types";
 
 const slots: TimeSlot[] = [

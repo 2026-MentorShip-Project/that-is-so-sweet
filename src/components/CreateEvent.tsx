@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X, AlertTriangle, MapPin, Rocket, Clock, Plus, Check, Info } from "lucide-react";
 import { CreateEventInput, EventLocation, EventMode, TimeSlot } from "../types";
-import { formatChineseWeekday } from "../lib/calendar";
-import { calculateSlotDuration, formatSlotTime, getNextWeekdayDate } from "../lib/slots";
-import { getDefaultDeadlineLocalValue, getNowLocalValue, localValueToIso, formatDeadline, formatRemaining } from "../lib/eventStatus";
-import { parseLocationInput, extractPlaceNameFromFullUrl, mockResolveShortLink } from "../lib/location";
+import { formatChineseWeekday } from "../share/calendar";
+import { calculateSlotDuration, formatSlotTime, getNextWeekdayDate } from "../share/slots";
+import { getDefaultDeadlineLocalValue, getNowLocalValue, localValueToIso, formatDeadline, formatRemaining } from "../share/eventStatus";
+import { parseLocationInput, extractPlaceNameFromFullUrl, mockResolveShortLink } from "../share/location";
 import { Button, Input } from "../design-system/components";
-import { MonthCalendar } from "../mobile/MonthCalendar";
-import { MiniMonthPicker } from "../mobile/MiniMonthPicker";
-import { cardStyle, SectionLabel } from "../mobile/mobileStyles";
-import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../lib/api";
-import { CREATE_EVENT_LIMITS } from "../lib/eventsApi";
+import { MonthCalendar } from "./app/MonthCalendar";
+import { MiniMonthPicker } from "./app/MiniMonthPicker";
+import { cardStyle, SectionLabel } from "./app/mobileStyles";
+import { getRecentSlotPresets, saveRecentSlotPresets, getUserNickname } from "../share/api";
+import { CREATE_EVENT_LIMITS } from "../api/eventsApi";
 
 interface CreateEventProps {
   onSubmit: (input: CreateEventInput) => Promise<void>;

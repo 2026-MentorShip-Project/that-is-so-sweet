@@ -19,7 +19,8 @@ interface MobileAppProps {
   isLoading: boolean;
   pageError: string | null;
   onGoHome: () => void;
-  onCreateEvent: (input: CreateEventInput) => Promise<void>;
+  onCreateEvent: (input: CreateEventInput) => Promise<boolean>;
+  isCreating: boolean;
   onRespond: (input: SubmitResponseInput) => Promise<void>;
   onFinalize: (finalSlotId: string, finalNote?: string) => Promise<void>;
   onReopen: (newDeadline?: string) => Promise<void>;
@@ -66,6 +67,7 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   pageError,
   onGoHome,
   onCreateEvent,
+  isCreating,
   onRespond,
   onFinalize,
   onReopen,
@@ -143,7 +145,7 @@ export const MobileApp: React.FC<MobileAppProps> = ({
           !user ? (
             <LoginScreen onLogin={onLogin} isAuthenticating={isAuthenticating} authError={authError} />
           ) : homeView === "create" ? (
-            <CreateWizard onSubmit={onCreateEvent} isLoading={isLoading} onOpenHistory={() => setIsHistoryOpen(true)} hostEmail={user.email} />
+            <CreateWizard onSubmit={onCreateEvent} isLoading={isCreating} onOpenHistory={() => setIsHistoryOpen(true)} hostEmail={user.email} />
           ) : (
             <HostHome
               user={user}

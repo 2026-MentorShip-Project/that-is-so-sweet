@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { CalendarDays, ChevronLeft } from "lucide-react";
-import { EventData, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant } from "../types";
+import { OlderCommentsControl, EventData, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant } from "../types";
 import { getUserNickname, getUserEmail } from "../lib/api";
 import { getLifecycleStatus } from "../lib/eventStatus";
 import { Badge } from "../design-system/components";
@@ -24,6 +24,9 @@ interface EventViewProps {
   isEditing?: boolean;
   onEditingChange?: (open: boolean) => void;
   onSubmitComment: (input: SubmitCommentInput) => Promise<void>;
+  /** Host-only; omitted for demo events, which have no delete in the local store. */
+  onDeleteComment?: (commentId: string) => Promise<void>;
+  olderComments?: OlderCommentsControl;
   onSelectAiRestaurant: (restaurant: AiSelectedRestaurant) => void;
   onCopySuccess: () => void;
   isLoading: boolean;
@@ -41,6 +44,8 @@ export const EventView: React.FC<EventViewProps> = ({
   isEditing,
   onEditingChange,
   onSubmitComment,
+  onDeleteComment,
+  olderComments,
   onSelectAiRestaurant,
   onCopySuccess,
   isLoading,
@@ -100,14 +105,14 @@ export const EventView: React.FC<EventViewProps> = ({
           <>
             <CancelledView event={event} />
             <div style={{ marginTop: 12, borderTop: "8px solid var(--color-cream)", padding: "20px 20px 20px" }}>
-              <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} isLoading={isLoading} />
+              <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} onDelete={isHost ? onDeleteComment : undefined} olderComments={olderComments} isLoading={isLoading} />
             </div>
           </>
         ) : event.status === "finalized" ? (
           <>
             <FinalizedView event={event} isHost={isHost} onReopen={onReopen} onCancelEvent={isHost ? onCancelEvent : undefined} onSelectAiRestaurant={onSelectAiRestaurant} isLoading={isLoading} onCopySuccess={onCopySuccess} />
             <div style={{ marginTop: 12, borderTop: "8px solid var(--color-cream)", padding: "20px 20px 20px" }}>
-              <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} isLoading={isLoading} />
+              <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} onDelete={isHost ? onDeleteComment : undefined} olderComments={olderComments} isLoading={isLoading} />
             </div>
           </>
         ) : (
@@ -155,7 +160,7 @@ export const EventView: React.FC<EventViewProps> = ({
                   layout="desktop"
                 />
                 <div style={{ marginTop: 12, borderTop: "8px solid var(--color-cream)", padding: "20px 20px 20px" }}>
-                  <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} isLoading={isLoading} />
+                  <CommentBoard event={event} nickname={nickname} setNickname={setNickname} onSubmit={onSubmitComment} onDelete={isHost ? onDeleteComment : undefined} olderComments={olderComments} isLoading={isLoading} />
                 </div>
               </>
             )}

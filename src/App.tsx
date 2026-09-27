@@ -10,6 +10,8 @@ import { EventCreatedModal } from "./components/EventCreatedModal";
 import { MobileApp } from "./pages/app/MobileApp";
 import { useViewport } from "./share/useViewport";
 import { useGoogleAuth } from "./lib/googleAuth";
+import { useEventPolling } from "./lib/useEventPolling";
+import { mergeLatestComments } from "./share/event/mergeLatestComments";
 import {
   EventData,
   CreateEventInput,
@@ -60,6 +62,8 @@ export default function App() {
   const homeView: "dashboard" | "create" = route.name === "create" ? "create" : "dashboard";
   const [currentHostToken, setCurrentHostToken] = useState<string | null>(null);
   const [eventData, setEventData] = useState<EventData | null>(null);
+  const eventDataRef = React.useRef(eventData);
+  eventDataRef.current = eventData;
   const [initialTab, setInitialTab] = useState<"vote" | "heatmap" | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -81,6 +85,9 @@ export default function App() {
   const [isCreating, setIsCreating] = useState(false);
   // Cursor for the next older page of comments (null = all loaded).
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
+  // Latest values for the polling callbacks, which run outside render.
+  const commentsCursorRef = React.useRef(commentsCursor);
+  commentsCursorRef.current = commentsCursor;
   const [isLoadingOlderComments, setIsLoadingOlderComments] = useState(false);
   const [createdEvent, setCreatedEvent] = useState<(CreateEventResult & { title: string }) | null>(null);
   // Host identity is only honored while "logged in" — logging out strips
@@ -144,6 +151,48 @@ export default function App() {
       setIsLoading(false);
     }
   };
+
+  // Silent refetch after polling detects a change: no spinner, and a
+  // transient error keeps what's on screen. Only a 404/410 replaces the page.
+  const refreshEvent = async (id: string) => {
+    try {
+      const data = await eventsApi.getEvent(id);
+      if (latestEventLoadRef.current !== id) return;
+      setEventData((prev) => ({ ...data, comments: prev?.id === id ? prev.comments : data.comments }));
+      setCurrentHostToken(data.isOwner ? eventsApi.API_OWNER_HOST_TOKEN : null);
+    } catch (err) {
+      if (latestEventLoadRef.current !== id) return;
+      if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
+        setPageError(err.displayMessage);
+        setEventData(null);
+      }
+    }
+  };
+
+  // Poll real events once they're on screen, so other people's votes and the
+  // host's finalize/cancel/edit show up without reloading.
+  const pollingEventId = currentEventId && !isDemoEvent(currentEventId) && eventData?.id === currentEventId ? currentEventId : null;
+  // Refetch the latest comment page and fold it into what's on screen
+  // (keeps older pages the user already loaded; see mergeLatestComments).
+  const refreshComments = async (id: string) => {
+    try {
+      const latest = await eventsApi.listComments(id);
+      if (latestEventLoadRef.current !== id) return;
+      const shown = eventDataRef.current;
+      if (!shown || shown.id !== id) return;
+      const merged = mergeLatestComments({ comments: shown.comments, nextCursor: commentsCursorRef.current }, latest);
+      setEventData((prev) => (prev && prev.id === id ? { ...prev, comments: merged.comments } : prev));
+      setCommentsCursor(merged.nextCursor);
+    } catch {
+      // Keep what's on screen; the next poll will try again.
+    }
+  };
+
+  useEventPolling(pollingEventId, (change) => {
+    if (!pollingEventId) return;
+    if (change.event) refreshEvent(pollingEventId);
+    if (change.comments) refreshComments(pollingEventId);
+  });
 
   // Browser back/forward, plus a one-time rewrite of old "#event=" links
   // (and the backend's shareUrl) to the canonical path.

@@ -10,6 +10,7 @@ import {
   listComments,
   postComment,
   deleteComment,
+  getEventPoll,
   fromApiEvent,
   submitResponse,
   verifyResponse,
@@ -610,5 +611,46 @@ describe("verifyResponse", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err.code).toBe("IDENTITY_VERIFICATION_FAILED");
     expect(err.displayMessage).toBe("暱稱或手機末三碼不正確");
+  });
+});
+
+describe("getEventPoll", () => {
+  const status = {
+    status: "finalized",
+    displayStatus: "finalized_upcoming",
+    eventUpdatedAt: "2026-09-25T10:12:00+08:00",
+    responseCount: 2,
+    latestResponseAt: "2026-09-25T09:50:00+08:00",
+    commentCount: 3,
+    latestCommentAt: "2026-09-25T09:55:00+08:00",
+  };
+
+  it("GETs the lightweight change signal without requiring login", async () => {
+    storedToken = null;
+    fetchMock.mockResolvedValue(jsonResponse(200, status));
+
+    const result = await getEventPoll("irt9DIwH");
+
+    const { url, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/poll/");
+    expect(headers.has("Authorization")).toBe(false);
+    expect(result).toEqual(status);
+  });
+
+  it("retries anonymously when a stale token is rejected", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, { message: "驗證失敗，請重新登入", code: "UNAUTHORIZED" }))
+      .mockResolvedValueOnce(jsonResponse(200, status));
+
+    expect(await getEventPoll("irt9DIwH")).toEqual(status);
+  });
+
+  it("surfaces an expired link", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(410, { message: "此活動連結已失效（活動結束超過7天）", code: "LINK_EXPIRED" }));
+
+    const err = await getEventPoll("irt9DIwH").catch((e) => e);
+
+    expect(err.status).toBe(410);
+    expect(err.code).toBe("LINK_EXPIRED");
   });
 });

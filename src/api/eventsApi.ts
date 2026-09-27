@@ -10,6 +10,7 @@ import {
   CreateEventResult,
   EventComment,
   EventData,
+  EventPollStatus,
   EventSummary,
   ParticipantResponse,
   SubmitCommentInput,
@@ -214,6 +215,12 @@ export async function verifyResponse(eventId: string, nickname: string, phoneLas
     { method: "POST", skipAuth: true, body: JSON.stringify({ nickname, phoneLastThree }) },
   );
   return { ...identity, availability: toAvailabilityMap(slotAvailabilities) };
+}
+
+// Public, like GET /api/events/{id}/ — the token only matters for isOwner,
+// so a stale one falls back to an anonymous retry.
+export function getEventPoll(eventId: string): Promise<EventPollStatus> {
+  return apiFetch<EventPollStatus>(`/api/events/${encodeURIComponent(eventId)}/poll/`, { optionalAuth: true });
 }
 
 // The form keeps slot times as "HH:MM" (and "" in date_only mode); the API

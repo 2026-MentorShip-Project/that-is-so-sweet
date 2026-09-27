@@ -4,7 +4,6 @@ import { googleSignIn, logoutApi } from "../api/authApi";
 
 const KEYS = {
   access: "jiu_access_token",
-  refresh: "jiu_refresh_token",
   user: "jiu_user",
 } as const;
 
@@ -17,15 +16,13 @@ function readUser(): AuthUser | null {
   }
 }
 
-function storeSession(access: string, refresh: string, user: AuthUser): void {
+function storeSession(access: string, user: AuthUser): void {
   localStorage.setItem(KEYS.access, access);
-  localStorage.setItem(KEYS.refresh, refresh);
   localStorage.setItem(KEYS.user, JSON.stringify(user));
 }
 
 function clearSession(): void {
   localStorage.removeItem(KEYS.access);
-  localStorage.removeItem(KEYS.refresh);
   localStorage.removeItem(KEYS.user);
 }
 
@@ -48,7 +45,7 @@ export function useGoogleAuth() {
     setAuthError(null);
     try {
       const res = await googleSignIn(idToken);
-      storeSession(res.access, res.refresh, res.user);
+      storeSession(res.access, res.user);
       setUser(res.user);
     } catch (err: unknown) {
       setAuthError(err instanceof Error ? err.message : "登入失敗，請重試");
@@ -58,17 +55,13 @@ export function useGoogleAuth() {
   }, []);
 
   const logout = useCallback(async () => {
-    const refresh = localStorage.getItem(KEYS.refresh);
-    if (refresh) {
-      try {
-        await logoutApi(refresh);
-      } catch {
-        // best-effort — always clear session locally
-      }
+    try {
+      await logoutApi();
+    } catch {
+      // best-effort — always clear session locally
     }
     clearSession();
     setUser(null);
-    
   }, []);
 
   return { user, isAuthenticating, authError, loginWithIdToken, logout };

@@ -8,19 +8,16 @@
 // fresh token can be swapped in without restarting Vite.
 
 const ACCESS_TOKEN_KEY = "jiu_access_token";
-const REFRESH_TOKEN_KEY = "jiu_refresh_token";
 
 let refreshPromise: Promise<void> | null = null;
 
 async function tryRefreshToken(): Promise<void> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
-    const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!refresh) throw new Error("no refresh token");
     const res = await fetch(`${API_BASE_URL}/api/auth/refresh/`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ refresh }),
+      credentials: "include",
     });
     if (!res.ok) {
       window.dispatchEvent(new Event("auth:session-expired"));
@@ -91,7 +88,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: "include" });
   } catch {
     throw new ApiError(0, "無法連線到伺服器，請確認後端是否已啟動");
   }

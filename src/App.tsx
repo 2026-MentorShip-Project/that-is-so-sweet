@@ -19,6 +19,7 @@ import {
   UpdateEventInput,
   AiSelectedRestaurant,
   ToastMessage,
+  OlderCommentsControl,
   EventSummary,
   CreateEventResult,
 } from "./types";
@@ -80,6 +81,9 @@ export default function App() {
   // !isLoading, so reusing it would unmount the form mid-submit and wipe the
   // host's input when creation fails.
   const [isCreating, setIsCreating] = useState(false);
+  // Cursor for the next older page of comments (null = all loaded).
+  const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
+  const [isLoadingOlderComments, setIsLoadingOlderComments] = useState(false);
   const [createdEvent, setCreatedEvent] = useState<(CreateEventResult & { title: string }) | null>(null);
   // Host identity is only honored while "logged in" — logging out strips
   // host-only UI everywhere immediately, even on an event page already open,
@@ -112,6 +116,7 @@ export default function App() {
 
   const loadEvent = async (id: string, tokenParam?: string) => {
     latestEventLoadRef.current = id;
+    setCommentsCursor(null);
     setIsLoading(true);
     setPageError(null);
     try {
@@ -126,9 +131,11 @@ export default function App() {
         setEventData(data);
         setCurrentHostToken(effectiveToken || null);
       } else {
-        const data = await eventsApi.getEvent(id);
+        // Comments aren't part of the event payload; fetch both together.
+        const [data, page] = await Promise.all([eventsApi.getEvent(id), eventsApi.listComments(id)]);
         if (latestEventLoadRef.current !== id) return;
-        setEventData(data);
+        setEventData({ ...data, comments: page.comments });
+        setCommentsCursor(page.nextCursor);
         setCurrentHostToken(data.isOwner ? eventsApi.API_OWNER_HOST_TOKEN : null);
       }
     } catch (err: any) {
@@ -339,11 +346,52 @@ export default function App() {
   const handleSubmitComment = async (input: SubmitCommentInput) => {
     if (!currentEventId) return;
     try {
-      const updated = await submitComment(currentEventId, input);
-      setEventData(updated);
+      if (isDemoEvent(currentEventId)) {
+        setEventData(await submitComment(currentEventId, input));
+      } else {
+        const comment = await eventsApi.postComment(currentEventId, input);
+        saveUserNickname(input.nickname);
+        setEventData((prev) => (prev && prev.id === currentEventId ? { ...prev, comments: [...prev.comments, comment] } : prev));
+      }
     } catch (err: any) {
-      addToast("error", err.message || "送出留言失敗");
+      addToast("error", errorMessage(err, "送出留言失敗"));
+      // Rethrow so CommentBoard keeps the typed message instead of clearing it.
+      throw err;
     }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!currentEventId || isDemoEvent(currentEventId)) return;
+    try {
+      await eventsApi.deleteComment(currentEventId, commentId);
+      setEventData((prev) => (prev && prev.id === currentEventId ? { ...prev, comments: prev.comments.filter((c) => c.id !== commentId) } : prev));
+      addToast("info", "留言已刪除");
+    } catch (err: any) {
+      addToast("error", errorMessage(err, "刪除留言失敗"));
+    }
+  };
+
+  const onDeleteComment = currentEventId && !isDemoEvent(currentEventId) ? handleDeleteComment : undefined;
+
+  const handleLoadOlderComments = async () => {
+    if (!currentEventId || !commentsCursor || isLoadingOlderComments) return;
+    const eventId = currentEventId;
+    setIsLoadingOlderComments(true);
+    try {
+      const page = await eventsApi.listComments(eventId, commentsCursor);
+      setEventData((prev) => (prev && prev.id === eventId ? { ...prev, comments: [...page.comments, ...prev.comments] } : prev));
+      setCommentsCursor(page.nextCursor);
+    } catch (err: any) {
+      addToast("error", errorMessage(err, "載入留言失敗"));
+    } finally {
+      setIsLoadingOlderComments(false);
+    }
+  };
+
+  const olderComments: OlderCommentsControl = {
+    hasMore: commentsCursor !== null,
+    isLoading: isLoadingOlderComments,
+    onLoad: handleLoadOlderComments,
   };
 
   const handleSelectAiRestaurant = async (restaurant: AiSelectedRestaurant) => {
@@ -404,6 +452,8 @@ export default function App() {
         isEditing={isEditing}
         onEditingChange={handleEditingChange}
         onSubmitComment={handleSubmitComment}
+        onDeleteComment={onDeleteComment}
+        olderComments={olderComments}
         onSelectAiRestaurant={handleSelectAiRestaurant}
         isShareModalOpen={isShareModalOpen}
         setIsShareModalOpen={setIsShareModalOpen}
@@ -502,6 +552,8 @@ export default function App() {
             isEditing={isEditing}
             onEditingChange={handleEditingChange}
             onSubmitComment={handleSubmitComment}
+            onDeleteComment={onDeleteComment}
+            olderComments={olderComments}
         onSelectAiRestaurant={handleSelectAiRestaurant}
             onCopySuccess={() => addToast("success", "已成功複製到剪貼簿！")}
             isLoading={isLoading}

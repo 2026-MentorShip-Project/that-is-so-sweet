@@ -1,7 +1,7 @@
 // Events module (模組01/03/07/10) against the real backend. The rest of the
 // app still goes through ../share/api.ts (localStorage) until each endpoint is
 // migrated.
-import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventData, EventPollStatus, EventSummary, UpdateEventInput } from "../types";
+import { ApiEvent, AvailabilityStatus, CreateEventInput, CreateEventRequest, CreateEventResult, EventComment, EventData, EventPollStatus, EventSummary, SubmitCommentInput, UpdateEventInput } from "../types";
 import { apiFetch } from "./http";
 
 export function listMyEvents(): Promise<EventSummary[]> {
@@ -121,6 +121,41 @@ export async function reopenEvent(eventId: string, responseDeadline: string): Pr
 export async function cancelEvent(eventId: string): Promise<EventData & { isOwner: boolean }> {
   const data = await apiFetch<ApiEvent>(eventActionPath(eventId, "cancel"), { method: "POST" });
   return fromApiEvent(data);
+}
+
+// --- Comments (模組09) --- //
+// Reading and posting are public (no login, any nickname); only the host can
+// delete. The event payload doesn't include comments, so they're fetched
+// separately.
+
+function commentsPath(eventId: string): string {
+  return `/api/events/${encodeURIComponent(eventId)}/comments/`;
+}
+
+export interface CommentPage {
+  comments: EventComment[]; // oldest first, ready to render top-to-bottom
+  nextCursor: string | null; // pass back to load the next older page; null = no more
+}
+
+// The backend pages 10 at a time, newest first (swagger still documents the
+// older "whole array, oldest first" shape — backend add-comment-pagination
+// changed it). Each page is flipped to oldest first for the board.
+export async function listComments(eventId: string, cursor?: string): Promise<CommentPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const page = await apiFetch<{ comments: EventComment[]; nextCursor: string | null }>(`${commentsPath(eventId)}${query}`, { optionalAuth: true });
+  return { comments: [...page.comments].reverse(), nextCursor: page.nextCursor };
+}
+
+export function postComment(eventId: string, input: SubmitCommentInput): Promise<EventComment> {
+  return apiFetch<EventComment>(commentsPath(eventId), {
+    method: "POST",
+    body: JSON.stringify({ nickname: input.nickname, message: input.message }),
+    optionalAuth: true,
+  });
+}
+
+export async function deleteComment(eventId: string, commentId: string): Promise<void> {
+  await apiFetch<null>(`${commentsPath(eventId)}${encodeURIComponent(commentId)}/`, { method: "DELETE" });
 }
 
 // Public, like GET /api/events/{id}/ — the token only matters for isOwner,

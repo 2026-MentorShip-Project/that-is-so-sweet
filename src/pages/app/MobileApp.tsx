@@ -1,5 +1,5 @@
 import React from "react";
-import { EventData, EventSummary, CreateEventResult, CreateEventInput, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant, ToastMessage } from "../../types";
+import { OlderCommentsControl, EventData, EventSummary, CreateEventResult, CreateEventInput, SubmitResponseInput, SubmitCommentInput, UpdateEventInput, AiSelectedRestaurant, ToastMessage } from "../../types";
 import { VisitedEventItem } from "../../share/api";
 import { CreateWizard } from "./CreateWizard";
 import { EventScreen } from "./EventScreen";
@@ -30,6 +30,9 @@ interface MobileAppProps {
   isEditing?: boolean;
   onEditingChange?: (open: boolean) => void;
   onSubmitComment: (input: SubmitCommentInput) => Promise<void>;
+  /** Host-only; omitted for demo events, which have no delete in the local store. */
+  onDeleteComment?: (commentId: string) => Promise<void>;
+  olderComments?: OlderCommentsControl;
   onSelectAiRestaurant: (restaurant: AiSelectedRestaurant) => void;
   isShareModalOpen: boolean;
   setIsShareModalOpen: (open: boolean) => void;
@@ -73,6 +76,8 @@ export const MobileApp: React.FC<MobileAppProps> = ({
   isEditing,
   onEditingChange,
   onSubmitComment,
+  onDeleteComment,
+  olderComments,
   onSelectAiRestaurant,
   isShareModalOpen,
   setIsShareModalOpen,
@@ -169,6 +174,8 @@ export const MobileApp: React.FC<MobileAppProps> = ({
             isEditing={isEditing}
             onEditingChange={onEditingChange}
             onSubmitComment={onSubmitComment}
+            onDeleteComment={onDeleteComment}
+            olderComments={olderComments}
             onSelectAiRestaurant={onSelectAiRestaurant}
             onNewEvent={onGoHome}
             onOpenShare={() => setIsShareModalOpen(true)}

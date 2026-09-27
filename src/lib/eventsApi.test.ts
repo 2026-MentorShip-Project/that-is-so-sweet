@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, getEventPoll, fromApiEvent, API_OWNER_HOST_TOKEN } from "../api/eventsApi";
+import { createEvent, getEvent, listMyEvents, updateEvent, finalizeEvent, reopenEvent, cancelEvent, listComments, postComment, deleteComment, getEventPoll, fromApiEvent, API_OWNER_HOST_TOKEN } from "../api/eventsApi";
 import { ApiError } from "../api/http";
 import { CreateEventInput } from "../types";
 
@@ -414,6 +414,96 @@ describe("cancelEvent", () => {
 
     expect(err.status).toBe(403);
     expect(err.displayMessage).toBe("僅活動擁有者可取消活動");
+  });
+});
+
+describe("listComments", () => {
+  const page = [
+    { id: "s9DK6ziP", nickname: "小美", message: "我也是！", createdAt: "2026-09-22T10:35:00+08:00" },
+    { id: "8E7nhYk2", nickname: "小華", message: "期待這次聚會！", createdAt: "2026-09-22T10:30:00+08:00" },
+  ];
+
+  it("GETs the latest page without requiring login, returned oldest first for display", async () => {
+    storedToken = null;
+    fetchMock.mockResolvedValue(jsonResponse(200, { comments: page, nextCursor: "2026-09-22T10:30:00+08:00_8E7nhYk2" }));
+
+    const result = await listComments("irt9DIwH");
+
+    const { url, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/comments/");
+    expect(headers.has("Authorization")).toBe(false);
+    // The backend pages newest-first; the board reads top-to-bottom oldest-first.
+    expect(result.comments.map((c) => c.id)).toEqual(["8E7nhYk2", "s9DK6ziP"]);
+    expect(result.nextCursor).toBe("2026-09-22T10:30:00+08:00_8E7nhYk2");
+  });
+
+  it("passes the cursor to load older comments", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { comments: [], nextCursor: null }));
+
+    const result = await listComments("irt9DIwH", "2026-09-22T10:30:00+08:00_8E7nhYk2");
+
+    expect(lastRequest().url).toBe("http://localhost:8000/api/events/irt9DIwH/comments/?cursor=2026-09-22T10%3A30%3A00%2B08%3A00_8E7nhYk2");
+    expect(result).toEqual({ comments: [], nextCursor: null });
+  });
+
+  it("retries anonymously when a stale token is rejected", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, { message: "驗證失敗，請重新登入", code: "UNAUTHORIZED" }))
+      .mockResolvedValueOnce(jsonResponse(200, { comments: [], nextCursor: null }));
+
+    expect((await listComments("irt9DIwH")).comments).toEqual([]);
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).has("Authorization")).toBe(false);
+  });
+});
+
+describe("postComment", () => {
+  it("POSTs the nickname and message and returns the created comment", async () => {
+    const created = { id: "c1", nickname: "阿傑", message: "我可能晚到", createdAt: "2026-09-27T12:00:00+08:00" };
+    fetchMock.mockResolvedValue(jsonResponse(201, created));
+
+    const result = await postComment("irt9DIwH", { nickname: "阿傑", message: "我可能晚到" });
+
+    const { url, init } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/comments/");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ nickname: "阿傑", message: "我可能晚到" });
+    expect(result).toEqual(created);
+  });
+
+  it("surfaces validation and expired-link errors", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(400, { message: "超過200字", code: "MESSAGE_TOO_LONG" }));
+    const tooLong = await postComment("irt9DIwH", { nickname: "阿傑", message: "x".repeat(201) }).catch((e) => e);
+    expect(tooLong.displayMessage).toBe("超過200字");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(410, { message: "此活動連結已失效（活動結束超過7天）", code: "LINK_EXPIRED" }));
+    const expired = await postComment("irt9DIwH", { nickname: "阿傑", message: "hi" }).catch((e) => e);
+    expect(expired.status).toBe(410);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(429, { message: "留言太頻繁，請稍後再試", code: "COMMENT_RATE_LIMITED" }));
+    const tooFast = await postComment("irt9DIwH", { nickname: "阿傑", message: "hi" }).catch((e) => e);
+    expect(tooFast.code).toBe("COMMENT_RATE_LIMITED");
+  });
+});
+
+describe("deleteComment", () => {
+  it("DELETEs the comment as the logged-in host", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(deleteComment("irt9DIwH", "8E7nhYk2")).resolves.toBeUndefined();
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/comments/8E7nhYk2/");
+    expect(init.method).toBe("DELETE");
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
+  });
+
+  it("surfaces why the backend refused", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(404, { message: "找不到此留言", code: "COMMENT_NOT_FOUND" }));
+
+    const err = await deleteComment("irt9DIwH", "gone").catch((e) => e);
+
+    expect(err.code).toBe("COMMENT_NOT_FOUND");
+    expect(err.displayMessage).toBe("找不到此留言");
   });
 });
 

@@ -14,3 +14,10 @@ export function googleSignIn(idToken: string): Promise<AuthResponse> {
     skipAuth: true,
   });
 }
+
+export function logoutApi(refresh: string): Promise<void> {
+  return apiFetch<void>("/api/auth/logout/", {
+    method: "POST",
+    body: JSON.stringify({ refresh }),
+  });
+}

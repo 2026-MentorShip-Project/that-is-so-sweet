@@ -8,6 +8,31 @@
 // fresh token can be swapped in without restarting Vite.
 
 const ACCESS_TOKEN_KEY = "jiu_access_token";
+const REFRESH_TOKEN_KEY = "jiu_refresh_token";
+
+let refreshPromise: Promise<void> | null = null;
+
+async function tryRefreshToken(): Promise<void> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refresh) throw new Error("no refresh token");
+    const res = await fetch(`${API_BASE_URL}/api/auth/refresh/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ refresh }),
+    });
+    if (!res.ok) {
+      window.dispatchEvent(new Event("auth:session-expired"));
+      throw new Error("token refresh failed");
+    }
+    const body = await res.json();
+    localStorage.setItem(ACCESS_TOKEN_KEY, body.access);
+  })().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -53,10 +78,11 @@ export interface ApiFetchOptions extends RequestInit {
   // with 401, so retry anonymously instead of locking participants out.
   optionalAuth?: boolean;
   skipAuth?: boolean;
+  _retried?: boolean;
 }
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { optionalAuth, skipAuth, ...init } = options;
+  const { optionalAuth, skipAuth, _retried, ...init } = options;
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (init.body !== undefined) headers.set("Content-Type", "application/json");
@@ -74,7 +100,11 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   if (!res.ok) {
     if (res.status === 401 && token && optionalAuth) {
-      return apiFetch<T>(path, { ...init, skipAuth: true });
+      return apiFetch<T>(path, { ...options, skipAuth: true, _retried: true });
+    }
+    if (res.status === 401 && token && !skipAuth && !_retried) {
+      await tryRefreshToken();
+      return apiFetch<T>(path, { ...options, _retried: true });
     }
     if (res.status === 401 && !token && !skipAuth) {
       throw new ApiError(401, "尚未設定 access token，請先登入", "UNAUTHORIZED");

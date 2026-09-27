@@ -1,6 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuthUser } from "../types";
-import { googleSignIn } from "../api/authApi";
+import { googleSignIn, logoutApi } from "../api/authApi";
 
 const KEYS = {
   access: "jiu_access_token",
@@ -34,6 +34,15 @@ export function useGoogleAuth() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handler = () => {
+      clearSession();
+      setUser(null);
+    };
+    window.addEventListener("auth:session-expired", handler);
+    return () => window.removeEventListener("auth:session-expired", handler);
+  }, []);
+
   const loginWithIdToken = useCallback(async (idToken: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
@@ -48,9 +57,18 @@ export function useGoogleAuth() {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const refresh = localStorage.getItem(KEYS.refresh);
+    if (refresh) {
+      try {
+        await logoutApi(refresh);
+      } catch {
+        // best-effort — always clear session locally
+      }
+    }
     clearSession();
     setUser(null);
+    
   }, []);
 
   return { user, isAuthenticating, authError, loginWithIdToken, logout };

@@ -128,6 +128,12 @@ export interface SlotStats {
   percentage: number; // percentage of total participants who are available
 }
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 // --- Backend (jiu-sync API) shapes --- //
 
 // Server-computed lifecycle label; the frontend renders it as-is instead of

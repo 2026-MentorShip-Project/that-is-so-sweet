@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DRAFT_RESTORED, EventDraftFields, clearEventDraft, draftActionOnLeave, formatDraftSavedAt, getEventDraft, saveEventDraft } from "./eventDraft";
+import { DRAFT_RESTORED, EventDraftFields, clearEventDraft, draftActionOnLeave, formatDraftSavedAt, getEventDraft, saveEventDraft } from "../share/storage/eventDraft";
 
 const fields: EventDraftFields = {
   title: "週末聚餐",

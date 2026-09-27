@@ -1,6 +1,6 @@
 import React from "react";
 import { X, Check, Share2 } from "lucide-react";
-import { canShare, shareText } from "../lib/share";
+import { canShare, shareText } from "../share/share";
 import { Button } from "../design-system/components";
 
 interface EventCreatedModalProps {

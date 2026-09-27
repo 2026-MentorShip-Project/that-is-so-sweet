@@ -1,6 +1,6 @@
 import React from "react";
 import { FileClock } from "lucide-react";
-import { formatDraftSavedAt } from "../lib/eventDraft";
+import { formatDraftSavedAt } from "../share/storage/eventDraft";
 import { Button } from "../design-system/components";
 
 interface DraftBannerProps {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateCreateEventInput, weightedLength } from "./eventsApi";
+import { validateCreateEventInput, weightedLength } from "../api/eventsApi";
 
 const slot = { date: "2026-10-03", time: "18:00", label: "" };
 const valid = { hostName: "小明", description: "", slots: [slot] };

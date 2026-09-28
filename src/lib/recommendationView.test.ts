@@ -106,6 +106,8 @@ describe("aiErrorMessage", () => {
     expect(aiErrorMessage(err(503, "AI_RECOMMENDATION_UNAVAILABLE"))).toBe("AI 推薦服務目前未開放，請稍後再試。");
     expect(aiErrorMessage(err(504, "AI_RECOMMENDATION_UPSTREAM_TIMEOUT"))).toBe("AI 搜尋逾時，這次不會計入次數，請再試一次。");
     expect(aiErrorMessage(err(502, "AI_RECOMMENDATION_UPSTREAM_FAILED"))).toBe("AI 這次沒有找到合適的餐廳，這次不會計入次數，可以調整條件再試。");
+    expect(aiErrorMessage(err(400, "INVALID_RECOMMENDATION"))).toBe("這次推薦已失效，請重新產生推薦後再選。");
+    expect(aiErrorMessage(err(400, "INVALID_RESTAURANT"))).toBe("這間餐廳不在推薦結果中，請重新產生推薦後再選。");
   });
 
   it("falls back to the backend message for anything else", () => {

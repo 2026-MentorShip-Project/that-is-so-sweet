@@ -227,6 +227,49 @@ describe("getEvent", () => {
     });
   });
 
+  it("shows the restaurant the host picked from the AI recommendations", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        ...apiEvent,
+        selectedRestaurant: {
+          restaurant: {
+            id: "r2",
+            name: "鼎泰豐",
+            address: "台北市信義區松高路19號",
+            phone: null,
+            rating: 4.6,
+            reviewCount: null,
+            openingHours: null,
+            priceRange: "$$",
+            avgPricePerPerson: null,
+            cuisineType: null,
+            distanceInfo: null,
+            recommendReason: "適合聚餐",
+            sourceUrl: null,
+          },
+          selectedAt: "2026-09-29T12:00:00+08:00",
+        },
+      })
+    );
+
+    const event = await getEvent("irt9DIwH");
+
+    expect(event.aiSelectedRestaurant).toMatchObject({
+      name: "鼎泰豐",
+      rating: 4.6,
+      priceLevel: "$$",
+      address: "台北市信義區松高路19號",
+      reason: "適合聚餐",
+      selectedAt: "2026-09-29T12:00:00+08:00",
+    });
+  });
+
+  it("has no chosen restaurant when none was picked", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...apiEvent, selectedRestaurant: null }));
+
+    expect((await getEvent("irt9DIwH")).aiSelectedRestaurant).toBeUndefined();
+  });
+
   it("marks the owner so the event page shows host controls", async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, apiEvent));
 

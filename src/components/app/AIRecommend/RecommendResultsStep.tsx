@@ -10,6 +10,7 @@ interface RecommendResultsStepProps {
   result: RecommendationResult;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  selectDisabled: boolean;
   onRefresh: () => void;
   refreshDisabled: boolean;
   eventBroadcast: string;
@@ -38,6 +39,7 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
   result,
   selectedId,
   onSelect,
+  selectDisabled,
   onRefresh,
   refreshDisabled,
   eventBroadcast,
@@ -195,7 +197,7 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
 
             {!chosen && (
               <div style={{ marginTop: 10 }}>
-                <Button variant="dark" fullWidth onClick={() => onSelect(r.id)}>
+                <Button variant="dark" fullWidth disabled={selectDisabled} onClick={() => onSelect(r.id)}>
                   選這家，就決定是這裡
                 </Button>
               </div>

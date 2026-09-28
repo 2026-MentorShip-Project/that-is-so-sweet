@@ -437,8 +437,7 @@ export default function App() {
   const handleSelectAiRestaurant = async (restaurant: AiSelectedRestaurant) => {
     if (!currentEventId) return;
     if (!isDemoEvent(currentEventId)) {
-      // The backend has no endpoint to store the chosen restaurant yet, so it
-      // only lives on screen (gone after a reload).
+      // AIRecommendFlow already saved it (PUT selected-restaurant); just show it.
       setEventData((prev) => (prev && prev.id === currentEventId ? { ...prev, aiSelectedRestaurant: restaurant } : prev));
       return;
     }

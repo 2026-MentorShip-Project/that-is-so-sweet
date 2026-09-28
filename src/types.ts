@@ -215,6 +215,8 @@ export interface ApiEvent extends Omit<EventSummary, 'responseCount' | 'slots'> 
   finalSlotId: string | null;
   finalNote: string | null;
   finalAttendees: { id: string; nickname: string; comment: string | null }[];
+  // Restaurant the host picked from an AI recommendation (null = none yet).
+  selectedRestaurant?: { restaurant: RecommendedRestaurant; selectedAt: string } | null;
 }
 
 // GET /api/events/{id}/poll/ — cheap change signal, polled every few seconds.
@@ -292,6 +294,15 @@ export interface AiQuota {
   available: boolean;
   resetsAt: string;
   serviceAvailable: boolean;
+}
+
+// PUT /api/events/{id}/selected-restaurant/ response.
+export interface RestaurantSelection {
+  recommendationId: string;
+  restaurantId: string;
+  restaurant: RecommendedRestaurant;
+  selectedAt: string;
+  updatedAt: string;
 }
 
 export interface RecommendationResult {

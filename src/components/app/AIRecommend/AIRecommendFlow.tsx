@@ -3,7 +3,7 @@ import { X, ChevronLeft, Info, Loader2, AlertTriangle } from "lucide-react";
 import { EventData, AiSelectedRestaurant, AiQuota, RecommendationRequest, RecommendationResult } from "../../../types";
 import { useViewport } from "../../../share/useViewport";
 import { buildFinalizedBroadcast } from "../../../share/shareText";
-import { PreferenceForm, RecommendationError, getAiQuota, requestRestaurantRecommendations, toRecommendationRequest } from "../../../api/recommendationsApi";
+import { PreferenceForm, RecommendationError, getAiQuota, requestRestaurantRecommendations, selectRestaurant, toRecommendationRequest } from "../../../api/recommendationsApi";
 import { emptyPreferenceForm, partySizeForCount, demoQuota, demoRecommendation } from "../../../mocks/aiRecommendDemo";
 import { aiErrorMessage, toSelectedRestaurant } from "../../../share/ai/recommendationView";
 import { PreferenceFormStep } from "./PreferenceFormStep";
@@ -39,6 +39,7 @@ export const AIRecommendFlow: React.FC<AIRecommendFlowProps> = ({ event, onClose
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [quota, setQuota] = useState<AiQuota | null>(() => (isDemo ? demoQuota() : null));
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
 
@@ -52,9 +53,29 @@ export const AIRecommendFlow: React.FC<AIRecommendFlowProps> = ({ event, onClose
   const eventBroadcast = useMemo(() => buildFinalizedBroadcast(event), [event]);
   const chosen = result?.restaurants.find((r) => r.id === selectedId) || null;
 
-  // Leaving the flow with a restaurant selected is what confirms it.
+  // Real events save the pick to the backend as soon as it's made; demo
+  // events keep it locally and save it when the flow closes.
+  const handleSelect = async (restaurantId: string) => {
+    if (!result || isSelecting) return;
+    if (isDemo) {
+      setSelectedId(restaurantId);
+      return;
+    }
+    setIsSelecting(true);
+    setError(null);
+    try {
+      const selection = await selectRestaurant(event.id, result.id, restaurantId);
+      setSelectedId(restaurantId);
+      onSelectAiRestaurant(toSelectedRestaurant(selection.restaurant, selection.selectedAt));
+    } catch (err) {
+      setError(aiErrorMessage(err));
+    } finally {
+      setIsSelecting(false);
+    }
+  };
+
   const handleClose = () => {
-    if (chosen) onSelectAiRestaurant(toSelectedRestaurant(chosen, new Date().toISOString()));
+    if (isDemo && chosen) onSelectAiRestaurant(toSelectedRestaurant(chosen, new Date().toISOString()));
     onClose();
   };
 
@@ -175,7 +196,8 @@ export const AIRecommendFlow: React.FC<AIRecommendFlowProps> = ({ event, onClose
             <RecommendResultsStep
               result={result}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={handleSelect}
+              selectDisabled={isSelecting || isGenerating}
               onRefresh={() => generate(lastRequest, true)}
               refreshDisabled={isGenerating || quotaBlocked}
               eventBroadcast={eventBroadcast}

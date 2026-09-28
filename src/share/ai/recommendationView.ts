@@ -60,6 +60,8 @@ const MESSAGES: Record<string, string> = {
   AI_RECOMMENDATION_UNAVAILABLE: "AI 推薦服務目前未開放，請稍後再試。",
   AI_RECOMMENDATION_UPSTREAM_TIMEOUT: "AI 搜尋逾時，這次不會計入次數，請再試一次。",
   AI_RECOMMENDATION_UPSTREAM_FAILED: "AI 這次沒有找到合適的餐廳，這次不會計入次數，可以調整條件再試。",
+  INVALID_RECOMMENDATION: "這次推薦已失效，請重新產生推薦後再選。",
+  INVALID_RESTAURANT: "這間餐廳不在推薦結果中，請重新產生推薦後再選。",
 };
 
 export function aiErrorMessage(err: unknown): string {

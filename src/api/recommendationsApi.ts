@@ -1,4 +1,4 @@
-import { AiQuota, RecommendationRequest, RecommendationResult } from "../types";
+import { AiQuota, RecommendationRequest, RecommendationResult, RestaurantSelection } from "../types";
 import { ApiError, apiFetch } from "./http";
 
 // The preference form's state. Every field is optional for the backend.
@@ -68,4 +68,13 @@ export async function requestRestaurantRecommendations(eventId: string, request:
   } catch (err) {
     throw err instanceof ApiError ? new RecommendationError(err) : err;
   }
+}
+
+// Binds one restaurant from a successful recommendation to the event
+// (replacing any earlier pick). Participants see it on the event page.
+export function selectRestaurant(eventId: string, recommendationId: string, restaurantId: string): Promise<RestaurantSelection> {
+  return apiFetch<RestaurantSelection>(`/api/events/${encodeURIComponent(eventId)}/selected-restaurant/`, {
+    method: "PUT",
+    body: JSON.stringify({ recommendationId, restaurantId }),
+  });
 }

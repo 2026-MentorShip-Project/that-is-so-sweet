@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAiQuota, requestRestaurantRecommendations, toRecommendationRequest } from "../api/recommendationsApi";
+import { getAiQuota, requestRestaurantRecommendations, selectRestaurant, toRecommendationRequest } from "../api/recommendationsApi";
 import { ApiError } from "../api/http";
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -127,5 +127,38 @@ describe("requestRestaurantRecommendations", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err.code).toBe("AI_RECOMMENDATION_UPSTREAM_FAILED");
     expect(err.notes).toBe("附近找不到符合素食條件的餐廳");
+  });
+});
+
+describe("selectRestaurant", () => {
+  const restaurant = { id: "r2", name: "鼎泰豐", address: "台北市信義區松高路19號" };
+  const selection = {
+    recommendationId: "2f1c0e3a-0000-4000-8000-000000000001",
+    restaurantId: "r2",
+    restaurant,
+    selectedAt: "2026-09-29T12:00:00+08:00",
+    updatedAt: "2026-09-29T12:00:00+08:00",
+  };
+
+  it("PUTs the recommendation and restaurant ids as the host", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, selection));
+
+    const res = await selectRestaurant("J0Jf70hd", selection.recommendationId, "r2");
+
+    const { url, init, headers } = lastRequest();
+    expect(url).toBe("http://localhost:8000/api/events/J0Jf70hd/selected-restaurant/");
+    expect(init.method).toBe("PUT");
+    expect(headers.get("Authorization")).toBe("Bearer host-token");
+    expect(JSON.parse(init.body as string)).toEqual({ recommendationId: selection.recommendationId, restaurantId: "r2" });
+    expect(res).toEqual(selection);
+  });
+
+  it("surfaces an invalid restaurant", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(400, { message: "此餐廳不在該次推薦結果中", code: "INVALID_RESTAURANT" }));
+
+    const err = await selectRestaurant("J0Jf70hd", selection.recommendationId, "r9").catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe("INVALID_RESTAURANT");
   });
 });

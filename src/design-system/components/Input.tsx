@@ -6,6 +6,7 @@ interface InputProps {
   placeholder?: string;
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   type?: string;
   prefix?: React.ReactNode;
   suffix?: React.ReactNode;
@@ -28,6 +29,7 @@ export const Input: React.FC<InputProps> = ({
   placeholder,
   value,
   onChange,
+  onKeyDown,
   type = "text",
   prefix,
   suffix,
@@ -78,6 +80,7 @@ export const Input: React.FC<InputProps> = ({
           type={type}
           value={value}
           onChange={onChange}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={disabled}
           maxLength={maxLength}

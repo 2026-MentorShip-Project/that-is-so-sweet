@@ -18,6 +18,7 @@ import {
   UpdateEventInput,
 } from "../types";
 import { apiFetch } from "./http";
+import { toSelectedRestaurant } from "../share/ai/recommendationView";
 
 export function listMyEvents(): Promise<EventSummary[]> {
   return apiFetch<EventSummary[]>("/api/events/?owner=me");
@@ -66,6 +67,7 @@ export function fromApiEvent(e: ApiEvent): EventData & { isOwner: boolean } {
     status: e.status,
     finalSlotId: e.finalSlotId || undefined,
     finalNote: e.finalNote || undefined,
+    aiSelectedRestaurant: e.selectedRestaurant ? toSelectedRestaurant(e.selectedRestaurant.restaurant, e.selectedRestaurant.selectedAt) : undefined,
     createdAt: "",
     updatedAt: "",
     isOwner: e.isOwner,

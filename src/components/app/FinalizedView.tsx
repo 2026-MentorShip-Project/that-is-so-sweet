@@ -149,7 +149,7 @@ export const FinalizedView: React.FC<FinalizedViewProps> = ({ event, isHost, onR
                 </div>
                 <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 1, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   <Star size={11} fill="var(--color-secondary)" color="var(--color-secondary)" style={{ flexShrink: 0 }} />
-                  {aiSelectedRestaurant.rating.toFixed(1)} · {aiSelectedRestaurant.priceLevel} · {aiSelectedRestaurant.address}
+                  {[aiSelectedRestaurant.rating !== null ? aiSelectedRestaurant.rating.toFixed(1) : null, aiSelectedRestaurant.priceLevel || null, aiSelectedRestaurant.address].filter(Boolean).join(" · ")}
                 </div>
               </>
             ) : (

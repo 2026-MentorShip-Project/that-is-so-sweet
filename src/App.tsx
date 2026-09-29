@@ -436,6 +436,11 @@ export default function App() {
 
   const handleSelectAiRestaurant = async (restaurant: AiSelectedRestaurant) => {
     if (!currentEventId) return;
+    if (!isDemoEvent(currentEventId)) {
+      // AIRecommendFlow already saved it (PUT selected-restaurant); just show it.
+      setEventData((prev) => (prev && prev.id === currentEventId ? { ...prev, aiSelectedRestaurant: restaurant } : prev));
+      return;
+    }
     try {
       const updated = await saveAiSelectedRestaurant(currentEventId, restaurant);
       setEventData(updated);

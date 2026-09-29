@@ -34,7 +34,7 @@ export interface EventLocation {
 export interface AiSelectedRestaurant {
   emoji: string;
   name: string;
-  rating: number;
+  rating: number | null; // AI results may not include a rating
   priceLevel: string;
   address: string;
   mapsUrl: string;
@@ -215,6 +215,8 @@ export interface ApiEvent extends Omit<EventSummary, 'responseCount' | 'slots'> 
   finalSlotId: string | null;
   finalNote: string | null;
   finalAttendees: { id: string; nickname: string; comment: string | null }[];
+  // Restaurant the host picked from an AI recommendation (null = none yet).
+  selectedRestaurant?: { restaurant: RecommendedRestaurant; selectedAt: string } | null;
 }
 
 // GET /api/events/{id}/poll/ — cheap change signal, polled every few seconds.
@@ -226,4 +228,87 @@ export interface EventPollStatus {
   latestResponseAt: string | null;
   commentCount: number;
   latestCommentAt: string | null;
+}
+
+// --- AI restaurant recommendations (backend add-ai-restaurant-recommendation) --- //
+
+// POST /api/events/{id}/restaurant-recommendations/ body. Every field is
+// optional; omitted ones are filled from the event by the backend.
+export interface RecommendationRequest {
+  location?: string;
+  relationship?: string;
+  budget?: string;
+  partySize?: string;
+  situational?: string[];
+  dietary?: {
+    vegetarian?: boolean;
+    spice?: string;
+    cuisines?: string[];
+    restrictions?: string[];
+  };
+  customPrompt?: string;
+}
+
+// What the backend actually searched with (request values merged with the event's).
+export interface ResolvedPreferences {
+  location: string;
+  locationSource: 'request' | 'event';
+  partySize: string | null;
+  attendeeCount: number;
+  mealDate: string;
+  mealTime: string | null;
+  relationship: string | null;
+  budget: string | null;
+  situational: string[];
+  dietary: {
+    vegetarian: boolean | null;
+    spice: string | null;
+    cuisines: string[];
+    restrictions: string[];
+  };
+  customPrompt: string | null;
+}
+
+export interface RecommendedRestaurant {
+  id: string;
+  name: string;
+  address: string;
+  phone: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  openingHours: string | null;
+  priceRange: string | null;
+  avgPricePerPerson: { min: number | null; max: number | null } | null;
+  cuisineType: string | null;
+  distanceInfo: { transitPoint: string | null; walkMinutes: number | null } | null;
+  recommendReason: string | null;
+  sourceUrl: string | null; // an article mentioning the place, not necessarily its own page
+}
+
+// GET /api/me/ai-recommendation-quota/ (same shape as `quota` in a recommendation).
+export interface AiQuota {
+  period: string; // YYYY-MM
+  limit: number;
+  used: number;
+  remaining: number;
+  available: boolean;
+  resetsAt: string;
+  serviceAvailable: boolean;
+}
+
+// PUT /api/events/{id}/selected-restaurant/ response.
+export interface RestaurantSelection {
+  recommendationId: string;
+  restaurantId: string;
+  restaurant: RecommendedRestaurant;
+  selectedAt: string;
+  updatedAt: string;
+}
+
+export interface RecommendationResult {
+  id: string;
+  restaurants: RecommendedRestaurant[];
+  notes: string | null;
+  resolvedPreferences: ResolvedPreferences;
+  quota: AiQuota;
 }

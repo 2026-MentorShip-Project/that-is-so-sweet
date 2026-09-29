@@ -1,16 +1,16 @@
 import React from "react";
-import { Sparkles, Star, MapPin, ExternalLink, RefreshCw, PartyPopper, Share2, Copy } from "lucide-react";
+import { Sparkles, Star, MapPin, ExternalLink, RefreshCw, PartyPopper, Share2, Copy, Clock, Phone, TrainFront, Info } from "lucide-react";
 import { Button, Tag } from "../../../design-system/components";
 import { cardStyle } from "../mobileStyles";
-import { Candidate, PreferenceFormState, candidateReason, buildRestateSummary } from "../../../mocks/aiRecommendDemo";
+import { RecommendationResult } from "../../../types";
 import { canShare, shareText } from "../../../share/share";
+import { describeResolvedPreferences, formatPrice, mapsSearchUrl } from "../../../share/ai/recommendationView";
 
 interface RecommendResultsStepProps {
-  candidates: Candidate[];
-  form: PreferenceFormState;
-  participantCount: number;
+  result: RecommendationResult;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  selectDisabled: boolean;
   onRefresh: () => void;
   refreshDisabled: boolean;
   eventBroadcast: string;
@@ -33,12 +33,13 @@ const reasonBoxStyle: React.CSSProperties = {
   lineHeight: 1.5,
 };
 
+const metaStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--color-muted)" };
+
 export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
-  candidates,
-  form,
-  participantCount,
+  result,
   selectedId,
   onSelect,
+  selectDisabled,
   onRefresh,
   refreshDisabled,
   eventBroadcast,
@@ -46,10 +47,11 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
   onRestart,
   onClose,
 }) => {
-  const ctx = { count: Math.max(participantCount, 1) };
-  const chosen = candidates.find((c) => c.id === selectedId) || null;
+  const { restaurants } = result;
+  const chosen = restaurants.find((r) => r.id === selectedId) || null;
+  const chosenPrice = chosen ? formatPrice(chosen) : null;
   const chosenBroadcast = chosen
-    ? `${eventBroadcast}\n\n🍽️ 推薦餐廳：${chosen.name}（⭐${chosen.rating.toFixed(1)} · ${chosen.priceLevel}）\n📍 ${chosen.address}\n🔗 ${chosen.mapsUrl}`
+    ? `${eventBroadcast}\n\n🍽️ 推薦餐廳：${chosen.name}${chosen.rating !== null ? `（⭐${chosen.rating.toFixed(1)}${chosenPrice ? ` · ${chosenPrice}` : ""}）` : chosenPrice ? `（${chosenPrice}）` : ""}\n📍 ${chosen.address}\n🔗 ${mapsSearchUrl(chosen.name, chosen.address)}`
     : "";
 
   const handleCopy = async () => {
@@ -66,17 +68,28 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ ...cardStyle, background: "var(--color-primary-subtle)", borderColor: "transparent", display: "flex", gap: 8, alignItems: "flex-start" }}>
         <Sparkles size={14} style={{ flexShrink: 0, marginTop: 2, color: "var(--color-primary)" }} />
-        <div style={{ fontSize: 12, lineHeight: 1.6, color: "var(--color-ink)" }}>{buildRestateSummary(form)}</div>
+        <div style={{ fontSize: 12, lineHeight: 1.6, color: "var(--color-ink)" }}>
+          <div style={{ fontWeight: 800 }}>AI 依這些條件搜尋：</div>
+          {describeResolvedPreferences(result.resolvedPreferences)}
+        </div>
       </div>
+
+      {result.notes && (
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 11, lineHeight: 1.6, color: "var(--color-muted)" }}>
+          <Info size={12} style={{ flexShrink: 0, marginTop: 3 }} />
+          <span>{result.notes}</span>
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <div style={{ fontSize: 12, color: "var(--color-muted)" }}>
-          {chosen ? "已選定，其餘推薦僅供對照：" : `以下 ${candidates.length} 間為 AI 推薦餐廳，主揪可直接選一間拍板：`}
+          {chosen ? "已選定，其餘推薦僅供對照：" : `以下 ${restaurants.length} 間為 AI 推薦餐廳，主揪可直接選一間拍板：`}
         </div>
         {!chosen && (
           <button
             onClick={onRefresh}
             disabled={refreshDisabled}
+            title="重新推薦會再用掉一次額度"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -92,86 +105,99 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
             }}
           >
             <RefreshCw size={12} />
-            重新整理
+            重新推薦
           </button>
         )}
       </div>
 
-      {candidates.map((c) => {
-        const isSelected = c.id === selectedId;
+      {restaurants.map((r) => {
+        const isSelected = r.id === selectedId;
         const isDimmed = chosen !== null && !isSelected;
+        const price = formatPrice(r);
         return (
-          <div key={c.id} style={{ ...cardStyle, opacity: isDimmed ? 0.4 : 1, filter: isDimmed ? "grayscale(1)" : "none", transition: "opacity 200ms ease, filter 200ms ease" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "var(--radius-lg)",
-                  background: "var(--color-secondary-subtle)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20,
-                  flexShrink: 0,
-                }}
-              >
-                {c.emoji}
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ fontSize: 14, fontWeight: 900, fontFamily: "var(--font-display)", color: "var(--color-ink)" }}>{c.name}</div>
-                  {isSelected && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: "var(--radius-pill)", background: "rgba(90,158,90,0.15)", color: "var(--color-success)", fontSize: 10, fontWeight: 800 }}>
-                      <PartyPopper size={10} />
-                      已選定
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 1 }}>{c.tagline}</div>
-              </div>
+          <div key={r.id} style={{ ...cardStyle, opacity: isDimmed ? 0.4 : 1, filter: isDimmed ? "grayscale(1)" : "none", transition: "opacity 200ms ease, filter 200ms ease" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 15, fontWeight: 900, fontFamily: "var(--font-display)", color: "var(--color-ink)" }}>{r.name}</div>
+              {isSelected && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: "var(--radius-pill)", background: "rgba(90,158,90,0.15)", color: "var(--color-success)", fontSize: 10, fontWeight: 800 }}>
+                  <PartyPopper size={10} />
+                  已選定
+                </span>
+              )}
             </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-              {c.tags.map((t) => (
-                <Tag key={t} size="sm">
-                  {t}
-                </Tag>
-              ))}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, alignItems: "center" }}>
+              {r.cuisineType && <Tag size="sm">{r.cuisineType}</Tag>}
+              {r.rating !== null && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 800, color: "var(--color-ink)" }}>
+                  <Star size={12} fill="var(--color-secondary)" color="var(--color-secondary)" />
+                  {r.rating.toFixed(1)}
+                  {r.reviewCount !== null && <span style={{ fontWeight: 500, color: "var(--color-muted)" }}>（{r.reviewCount.toLocaleString()} 則）</span>}
+                </span>
+              )}
+              {price && <span style={{ fontSize: 12, fontWeight: 800, color: "var(--color-ink)" }}>{price}</span>}
             </div>
 
-            {/* Google Maps 單一店家欄位：評分、價格、地點、地址 */}
-            <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 800, color: "var(--color-ink)" }}>
-                <Star size={12} fill="var(--color-secondary)" color="var(--color-secondary)" />
-                {c.rating.toFixed(1)}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+              {r.distanceInfo?.transitPoint && (
+                <span style={metaStyle}>
+                  <TrainFront size={12} />
+                  {r.distanceInfo.transitPoint}
+                  {r.distanceInfo.walkMinutes !== null ? ` 步行約 ${r.distanceInfo.walkMinutes} 分鐘` : ""}
+                </span>
+              )}
+              <span style={{ ...metaStyle, alignItems: "flex-start" }}>
+                <MapPin size={12} style={{ flexShrink: 0, marginTop: 2 }} />
+                {r.address}
               </span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: "var(--color-ink)" }}>{c.priceLevel}</span>
-              <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{c.area}</span>
-              <span style={{ fontSize: 11, color: "var(--color-muted)" }}>可容納 {c.capacityLabel}</span>
+              {r.openingHours && (
+                <span style={metaStyle}>
+                  <Clock size={12} />
+                  {r.openingHours}
+                </span>
+              )}
+              {r.phone && (
+                <span style={metaStyle}>
+                  <Phone size={12} />
+                  {r.phone}
+                </span>
+              )}
             </div>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginTop: 6 }}>
-              <MapPin size={12} style={{ flexShrink: 0, marginTop: 2, color: "var(--color-muted)" }} />
-              <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{c.address}</span>
-            </div>
-            <a
-              href={c.mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textDecoration: "none" }}
-            >
-              <ExternalLink size={11} />
-              在 Google Maps 開啟
-            </a>
 
-            <div style={reasonBoxStyle}>
-              <Sparkles size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>{candidateReason(c, form, ctx)}</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
+              <a
+                href={mapsSearchUrl(r.name, r.address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textDecoration: "none" }}
+              >
+                <ExternalLink size={11} />
+                在 Google Maps 開啟
+              </a>
+              {r.sourceUrl && (
+                <a
+                  href={r.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="提到這家店的文章，不一定是店家官方頁面"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textDecoration: "none" }}
+                >
+                  <ExternalLink size={11} />
+                  參考來源
+                </a>
+              )}
             </div>
+
+            {r.recommendReason && (
+              <div style={reasonBoxStyle}>
+                <Sparkles size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>{r.recommendReason}</span>
+              </div>
+            )}
 
             {!chosen && (
               <div style={{ marginTop: 10 }}>
-                <Button variant="dark" fullWidth onClick={() => onSelect(c.id)}>
+                <Button variant="dark" fullWidth disabled={selectDisabled} onClick={() => onSelect(r.id)}>
                   選這家，就決定是這裡
                 </Button>
               </div>
@@ -188,17 +214,7 @@ export const RecommendResultsStep: React.FC<RecommendResultsStepProps> = ({
               onClick={handleCopy}
               title="複製確認通知"
               aria-label="複製確認通知"
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--color-ink)",
-                borderRadius: "var(--radius-sm)",
-              }}
+              style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ink)", borderRadius: "var(--radius-sm)" }}
             >
               <Copy size={16} />
             </button>

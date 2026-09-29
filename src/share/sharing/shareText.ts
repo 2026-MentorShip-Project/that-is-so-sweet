@@ -23,6 +23,12 @@ export interface ShareContent {
 // recommend flow, the headline switches to announce that too, and a
 // restaurant block is inserted between the event details and the
 // attendee list (see FinalizedView.tsx's own copy panel).
+// "（⭐4.6 · 每人 $400–600）", leaving out whatever the AI didn't return.
+function restaurantMeta(r: AiSelectedRestaurant): string {
+  const parts = [r.rating !== null ? `⭐${r.rating.toFixed(1)}` : null, r.priceLevel || null].filter(Boolean);
+  return parts.length > 0 ? `（${parts.join(" · ")}）` : "";
+}
+
 export function buildFinalizedBroadcast(
   event: Pick<EventData, "title" | "hostName" | "finalSlotId" | "slots" | "finalNote" | "mode" | "responses">,
   restaurant?: AiSelectedRestaurant
@@ -32,7 +38,7 @@ export function buildFinalizedBroadcast(
   const attending = slot ? event.responses.filter((r) => r.availability[slot.id] === "available").map((r) => r.nickname) : [];
   const headline = restaurant ? `🎉【${event.title}｜推薦餐廳結果已確認！】` : `🎉【聚會時間正式敲定囉！】`;
   const restaurantBlock = restaurant
-    ? `\n${restaurant.emoji} ${restaurant.name}（⭐${restaurant.rating.toFixed(1)} · ${restaurant.priceLevel}）\n📍 ${restaurant.address}\n🔗 ${restaurant.mapsUrl}\n${restaurant.reason}\n— 由主揪${event.hostName ? ` ${event.hostName}` : ""}拍板\n`
+    ? `\n${restaurant.emoji} ${restaurant.name}${restaurantMeta(restaurant)}\n📍 ${restaurant.address}\n🔗 ${restaurant.mapsUrl}\n${restaurant.reason}\n— 由主揪${event.hostName ? ` ${event.hostName}` : ""}拍板\n`
     : "";
   return `${headline}
 活動名稱：${event.title}

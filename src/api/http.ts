@@ -52,13 +52,15 @@ export class ApiError extends Error {
   status: number;
   code: string | null;
   errors: ApiFieldError[];
+  body: unknown; // full error body, for endpoint-specific extras
 
-  constructor(status: number, message: string, code: string | null = null, errors: ApiFieldError[] = []) {
+  constructor(status: number, message: string, code: string | null = null, errors: ApiFieldError[] = [], body: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.errors = errors;
+    this.body = body;
   }
 
   // Field errors are more useful to the user than the generic
@@ -106,7 +108,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     if (res.status === 401 && !token && !skipAuth) {
       throw new ApiError(401, "尚未設定 access token，請先登入", "UNAUTHORIZED");
     }
-    throw new ApiError(res.status, body?.message || `請求失敗（HTTP ${res.status}）`, body?.code ?? null, body?.errors ?? []);
+    throw new ApiError(res.status, body?.message || `請求失敗（HTTP ${res.status}）`, body?.code ?? null, body?.errors ?? [], body);
   }
   return body as T;
 }

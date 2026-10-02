@@ -119,6 +119,7 @@ export const EventView: React.FC<EventViewProps> = ({
           <>
             {view === "identify_vote" && (
               <VoteTab
+                isHost={isHost}
                 event={event}
                 nickname={nickname}
                 setNickname={setNickname}

@@ -13,6 +13,7 @@ import { EventInfoCard } from "./EventInfoCard";
 
 interface VoteTabProps {
   event: EventData;
+  isHost?: boolean;
   nickname: string;
   setNickname: (v: string) => void;
   email: string;
@@ -93,7 +94,7 @@ const VoteRow: React.FC<VoteRowProps> = (props) => {
 
 type VoteMode = "readonly" | "create" | "login" | "edit";
 
-export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, email, setEmail, onSubmit, isLoading, onSubmitted, stickyFooter = true, initialMode, onCancel }) => {
+export const VoteTab: React.FC<VoteTabProps> = ({ event, isHost = false, nickname, setNickname, email, setEmail, onSubmit, isLoading, onSubmitted, stickyFooter = true, initialMode, onCancel }) => {
   const [mode, setMode] = useState<VoteMode>(initialMode === "create" || initialMode === "login" ? initialMode : "readonly");
   const [comment, setComment] = useState("");
   const [password, setPassword] = useState("");
@@ -112,7 +113,12 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
-  const trimmedNickname = nickname.trim();
+  const voteNickname = isHost && mode === "create" ? event.hostName || "" : nickname;
+  const trimmedNickname = voteNickname.trim();
+
+  useEffect(() => {
+    if (isHost && mode === "create") setNickname(event.hostName || "");
+  }, [isHost, mode, event.hostName, setNickname]);
   const nicknameTaken =
     mode === "create" && !!trimmedNickname && event.responses.some((r) => r.nickname.toLowerCase() === trimmedNickname.toLowerCase());
 
@@ -125,7 +131,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const startCreate = () => {
     setEditingParticipantId(null);
     setAccessToken(null);
-    setNickname("");
+    setNickname(isHost ? event.hostName || "" : "");
     setEmail("");
     setPassword("");
     setComment("");
@@ -134,7 +140,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   };
 
   const startLogin = () => {
-    setLoginNickname(nickname || "");
+    setLoginNickname(isHost ? event.hostName || "" : nickname || "");
     setLoginPassword("");
     setLoginError("");
     setMode("login");
@@ -191,13 +197,13 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   useLayoutEffect(() => {
     if (initialMode === "create") {
       setEditingParticipantId(null);
-      setNickname("");
+      setNickname(isHost ? event.hostName || "" : "");
       setEmail("");
       setPassword("");
       setComment("");
       setAvailability(defaultAvailability());
     } else if (initialMode === "login") {
-      setLoginNickname(nickname || "");
+      setLoginNickname(isHost ? event.hostName || "" : nickname || "");
       setLoginPassword("");
       setLoginError("");
     }
@@ -248,12 +254,12 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
   const commentLocked = mode === "edit" && !isDemoEvent(event.id);
 
   const handleSubmit = async () => {
-    if (!nickname.trim() || !password.trim() || nicknameTaken) return;
+    if (!trimmedNickname || !password.trim() || nicknameTaken) return;
     try {
       await onSubmit({
         participantId: editingParticipantId || undefined,
         accessToken: accessToken || undefined,
-        nickname: nickname.trim(),
+        nickname: trimmedNickname,
         email: email.trim(),
         password: password.trim() || undefined,
         availability,
@@ -459,11 +465,11 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
         <>
           <Input
             size="sm"
-            label="您的暱稱"
+            label={isHost && mode === "create" ? "主揪暱稱" : "您的暱稱"}
             required
-            disabled={mode === "edit"}
+            disabled={mode === "edit" || isHost}
             placeholder="例如：小明"
-            value={nickname}
+            value={voteNickname}
             onChange={(e) => setNickname(e.target.value)}
           />
           <Input
@@ -743,7 +749,7 @@ export const VoteTab: React.FC<VoteTabProps> = ({ event, nickname, setNickname, 
             <Button
               variant="primary"
               fullWidth
-              disabled={!nickname.trim() || !password.trim() || isLoading || votingClosed || nicknameTaken}
+              disabled={!trimmedNickname || !password.trim() || isLoading || votingClosed || nicknameTaken}
               onClick={handleSubmit}
             >
               {mode === "edit" ? (

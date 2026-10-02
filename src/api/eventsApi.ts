@@ -183,8 +183,8 @@ export async function deleteComment(eventId: string, commentId: string): Promise
 
 const responsesPath = (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/responses/`;
 
-// Participant endpoints are public: skipAuth keeps their own 401 codes
-// (IDENTITY_VERIFICATION_FAILED, ACCESS_TOKEN_INVALID) instead of the "please log in" fallback.
+// First votes optionally carry JWT so the backend can recognize the host.
+// Verification and edits use participant credentials and retain skipAuth.
 export async function submitResponse(eventId: string, input: SubmitResponseInput): Promise<ParticipantResponse[]> {
   const { participantId, accessToken, nickname, email, password, availability, comment } = input;
   const slotAvailabilities = toSlotAvailabilities(availability);
@@ -197,7 +197,7 @@ export async function submitResponse(eventId: string, input: SubmitResponseInput
       })
     : await apiFetch<ApiEvent>(responsesPath(eventId), {
         method: "POST",
-        skipAuth: true,
+        optionalAuth: true,
         body: JSON.stringify({ nickname, email: email || null, phoneLastThree: password, comment, slotAvailabilities }),
       });
   return fromApiEvent(event).responses;

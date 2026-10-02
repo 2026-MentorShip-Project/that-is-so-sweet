@@ -583,7 +583,7 @@ describe("submitResponse", () => {
     const { url, init, headers } = lastRequest();
     expect(url).toBe("http://localhost:8000/api/events/irt9DIwH/responses/");
     expect(init.method).toBe("POST");
-    expect(headers.has("Authorization")).toBe(false);
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
     expect(JSON.parse(init.body as string)).toEqual({
       nickname: "阿傑",
       email: null,
@@ -595,6 +595,15 @@ describe("submitResponse", () => {
       ],
     });
     expect(responses).toMatchObject([{ id: "resp1", availability: { "slot-a": "available", "slot-b": "if_needed" } }]);
+  });
+
+  it("allows an anonymous first vote without an Authorization header", async () => {
+    storedToken = null;
+    fetchMock.mockResolvedValue(jsonResponse(201, apiEvent));
+
+    await submitResponse("irt9DIwH", vote);
+
+    expect(lastRequest().headers.has("Authorization")).toBe(false);
   });
 
   it("PATCHes only the access token and slot choices when editing", async () => {

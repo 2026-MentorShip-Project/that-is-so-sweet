@@ -134,6 +134,7 @@ export const EventScreen: React.FC<EventScreenProps> = ({
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" }}>
           {view === "identify_vote" && (
             <VoteTab
+              isHost={isHost}
               event={event}
               nickname={nickname}
               setNickname={setNickname}
@@ -163,7 +164,7 @@ export const EventScreen: React.FC<EventScreenProps> = ({
                 event={event}
                 userNickname={nickname}
                 onGoToVote={goToVote}
-                isHost={isHost}
+              isHost={isHost}
                 onFinalize={onFinalize}
                 onReopen={onReopen}
                 onCancelEvent={onCancelEvent}

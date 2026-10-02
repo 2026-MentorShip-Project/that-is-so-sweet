@@ -47,7 +47,7 @@ export const Input: React.FC<InputProps> = ({
   const sidePad = sizeCfg.padding.split(" ")[1];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", fontFamily: "var(--font-body)" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", minWidth: 0, fontFamily: "var(--font-body)" }}>
       {label && (
         <label
           style={{
@@ -87,6 +87,7 @@ export const Input: React.FC<InputProps> = ({
           required={required}
           style={{
             flex: 1,
+            minWidth: 0,
             border: "none",
             outline: "none",
             background: "transparent",

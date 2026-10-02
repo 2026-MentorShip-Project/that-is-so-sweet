@@ -40,20 +40,20 @@ const ChipInput: React.FC<{
     setDraft("");
   };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
       {values.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {values.map((v) => (
             <span
               key={v}
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 6px 3px 10px", borderRadius: "var(--radius-pill)", background: "var(--color-primary-subtle)", color: "var(--color-primary)", fontSize: 12, fontWeight: 700 }}
+              style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0, gap: 4, padding: "3px 6px 3px 10px", borderRadius: "var(--radius-pill)", background: "var(--color-primary-subtle)", color: "var(--color-primary)", fontSize: 12, fontWeight: 700 }}
             >
-              {v}
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{v}</span>
               <button
                 onClick={() => onChange(values.filter((x) => x !== v))}
                 disabled={disabled}
                 aria-label={`移除 ${v}`}
-                style={{ border: "none", background: "none", padding: 0, display: "flex", color: "inherit", cursor: "pointer" }}
+                style={{ border: "none", background: "none", padding: 0, display: "flex", flexShrink: 0, color: "inherit", cursor: "pointer" }}
               >
                 <X size={12} />
               </button>
@@ -61,8 +61,8 @@ const ChipInput: React.FC<{
           ))}
         </div>
       )}
-      <div style={{ display: "flex", gap: 6 }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 6 }}>
+        <div style={{ minWidth: 0 }}>
           <Input
             size="sm"
             placeholder={full ? `最多 ${max} 項` : placeholder}
@@ -220,7 +220,7 @@ export const PreferenceFormStep: React.FC<PreferenceFormStepProps> = ({ form, on
         />
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: 8, marginTop: 4 }}>
         <Button variant="muted" fullWidth disabled={disabled} onClick={onSkip}>
           略過，使用預設推薦
         </Button>
